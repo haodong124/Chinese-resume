@@ -94,7 +94,6 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
   const [aiError, setAiError] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   
-  // 新增状态
   const [skillsSummary, setSkillsSummary] = useState('')
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [industryAnalysis, setIndustryAnalysis] = useState<IndustryAnalysis | null>(null)
@@ -133,34 +132,34 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
     declining: '📉'
   }
 
-  // AI服务函数
+  // 使用Netlify Functions调用AI
   const callAIService = async (prompt: string, systemMessage: string) => {
-    const apiKey = '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'
+    const baseURL = window.location.hostname === 'localhost' 
+      ? 'http://localhost:8888/.netlify/functions/ai-service'
+      : '/.netlify/functions/ai-service'
     
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(baseURL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: prompt }
-          ],
+          prompt,
+          systemMessage,
+          action: 'general',
           temperature: 0.7,
-          max_tokens: 3000
+          maxTokens: 3000
         })
       })
 
       if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`)
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `API调用失败: ${response.status}`)
       }
 
       const data = await response.json()
-      return data.choices[0]?.message?.content || ''
+      return data.content || ''
     } catch (error) {
       console.error('AI调用失败:', error)
       throw error
@@ -364,7 +363,6 @@ ${experienceText}
     const major = education[0]?.major || ''
     const position = personalInfo.title || ''
     
-    // 基于专业和职位的智能推荐
     const baseSkills = [
       {
         name: 'Excel高级应用',
@@ -562,7 +560,6 @@ ${experienceText}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -586,9 +583,7 @@ ${experienceText}
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Tab Navigation */}
         <div className="mb-8">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
@@ -629,10 +624,8 @@ ${experienceText}
           </div>
         </div>
 
-        {/* Content based on active tab */}
         {showAnalysisTab === 'skills' && (
           <div className="space-y-8">
-            {/* AI错误提示 */}
             {aiError && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
                 <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
@@ -643,7 +636,6 @@ ${experienceText}
               </div>
             )}
 
-            {/* AI推荐区域 */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="flex justify-between items-center mb-6">
                 <div>
@@ -725,7 +717,6 @@ ${experienceText}
               </div>
             </div>
 
-            {/* 自定义技能区域 */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">自定义技能</h2>
@@ -852,7 +843,6 @@ ${experienceText}
           </div>
         )}
 
-        {/* 行业分析标签页 */}
         {showAnalysisTab === 'analysis' && (
           <div className="space-y-8">
             {isAnalyzing ? (
@@ -863,7 +853,6 @@ ${experienceText}
               </div>
             ) : industryAnalysis ? (
               <div className="space-y-6">
-                {/* 行业趋势 */}
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                     <TrendingUp className="h-6 w-6 text-green-600 mr-2" />
@@ -883,7 +872,6 @@ ${experienceText}
                   </div>
                 </div>
 
-                {/* 新兴技能 */}
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                     <Zap className="h-6 w-6 text-blue-600 mr-2" />
@@ -901,7 +889,6 @@ ${experienceText}
                   </div>
                 </div>
 
-                {/* 衰落技能 */}
                 {industryAnalysis.decliningSkills && industryAnalysis.decliningSkills.length > 0 && (
                   <div className="bg-white rounded-2xl shadow-lg p-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
@@ -921,7 +908,6 @@ ${experienceText}
                   </div>
                 )}
 
-                {/* AI影响分析 */}
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                     <Brain className="h-6 w-6 text-purple-600 mr-2" />
@@ -932,7 +918,6 @@ ${experienceText}
                   </div>
                 </div>
 
-                {/* 远程工作影响 */}
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                     <Target className="h-6 w-6 text-orange-600 mr-2" />
@@ -952,7 +937,6 @@ ${experienceText}
           </div>
         )}
 
-        {/* 技能总结标签页 */}
         {showAnalysisTab === 'summary' && (
           <div className="space-y-8">
             <div className="bg-white rounded-2xl shadow-lg p-8">
@@ -998,7 +982,6 @@ ${experienceText}
               )}
             </div>
 
-            {/* 选择的技能预览 */}
             {(selectedCount > 0 || customSkillsCount > 0) && (
               <div className="bg-white rounded-2xl shadow-lg p-8">
                 <h3 className="text-xl font-bold text-gray-900 mb-4">已选择的技能</h3>
@@ -1024,7 +1007,6 @@ ${experienceText}
           </div>
         )}
 
-        {/* 完成总结 */}
         {(selectedCount > 0 || customSkillsCount > 0) && (
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-blue-900 mb-4">🎯 AI分析完成情况</h3>
@@ -1056,7 +1038,6 @@ ${experienceText}
           </div>
         )}
 
-        {/* Navigation */}
         <div className="flex justify-between items-center mt-8">
           <button
             onClick={onBack}

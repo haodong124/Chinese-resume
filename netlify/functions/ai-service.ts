@@ -1,11 +1,7 @@
-/ ============================================
-// 1. 更新 netlify/functions/ai-service.ts (完整版)
-// ============================================
-
+// netlify/functions/ai-service.ts
 import type { Handler } from '@netlify/functions'
 
 export const handler: Handler = async (event) => {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -13,7 +9,6 @@ export const handler: Handler = async (event) => {
     'Content-Type': 'application/json',
   }
 
-  // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,

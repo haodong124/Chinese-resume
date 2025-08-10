@@ -228,9 +228,9 @@ function App() {
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'landing':
-        return (
-          <LandingPage onStart={() => goToStep('collection')} />
-        )
+       return (
+        <LandingPage onGetStarted={() => goToStep('collection')} />
+  )
       
       case 'collection':
         return (

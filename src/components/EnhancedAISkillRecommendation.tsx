@@ -48,7 +48,7 @@ interface AISkillRecommendation {
   salaryImpact?: string
   learningTime?: string
   trend?: 'rising' | 'stable' | 'declining'
-  description?: string // 新增：AI生成的技能描述
+  description?: string
 }
 
 interface Achievement {
@@ -486,7 +486,7 @@ ${experienceText}
     return baseSkills
   }
 
-  // 生成技能总结（增强版，结合工作经验）
+  // 生成技能总结（增强版，结合工作经验和量化成就）
   const generateSkillsSummary = async () => {
     const selectedSkills = [...recommendedSkills.filter(s => s.selected), ...customSkills]
     if (selectedSkills.length === 0) {
@@ -499,48 +499,166 @@ ${experienceText}
       const skillNames = selectedSkills.map(s => s.name).join('、')
       const categories = [...new Set(selectedSkills.map(s => s.category))].join('、')
       
-      // 包含工作经验信息
-      const experienceInfo = experience.map(exp => 
-        `${exp.position}@${exp.company}(${exp.duration}): ${exp.description}${
-          exp.achievements ? ` 主要成就: ${exp.achievements.join('、')}` : ''
-        }`
-      ).join('\n')
-      
+      // 整理工作经验信息（包含成就）
+      const experienceInfo = experience.map(exp => {
+        let expText = `${exp.position}@${exp.company}(${exp.duration})`
+        if (exp.isInternship) {
+          expText += '[实习]'
+        }
+        expText += `：${exp.description}`
+        
+        if (exp.achievements && exp.achievements.length > 0) {
+          expText += ` 主要成就：${exp.achievements.join('；')}`
+        }
+        return expText
+      }).join('\n')
+
+      // 分析技能描述中的能力
+      const skillCapabilities = selectedSkills
+        .filter(s => s.description)
+        .map(s => `${s.name}：${s.description}`)
+        .join('\n')
+
+      // 统计量化信息
+      const quantifiedData = {
+        totalSkills: selectedSkills.length,
+        techSkills: selectedSkills.filter(s => 
+          ['编程语言', '技术工具', '数据分析', '新兴技术'].includes(s.category)
+        ).length,
+        officeSkills: selectedSkills.filter(s => 
+          ['办公软件', '沟通协作'].includes(s.category)
+        ).length,
+        totalExperience: experience.length,
+        internshipCount: experience.filter(e => e.isInternship).length,
+        totalAchievements: experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)
+      }
+
       const prompt = `
-请为以下求职者撰写一个专业的技能总结：
+请为以下求职者撰写一个专业的技能总结，要求结合实际工作经验和量化成就：
 
 个人信息：
 - 姓名：${personalInfo.name}
 - 目标职位：${personalInfo.title || '未指定'}
 - 教育背景：${education.map(edu => `${edu.degree} ${edu.major}`).join('、')}
-- 主要技能：${skillNames}
-- 技能领域：${categories}
 
-工作经历：
+技能信息：
+- 主要技能（${quantifiedData.totalSkills}项）：${skillNames}
+- 技能领域：${categories}
+- 技术技能：${quantifiedData.techSkills}项，办公技能：${quantifiedData.officeSkills}项
+
+技能能力描述：
+${skillCapabilities}
+
+工作经历（${quantifiedData.totalExperience}段，包含${quantifiedData.internshipCount}段实习）：
 ${experienceInfo}
 
+量化数据：
+- 总工作成就：${quantifiedData.totalAchievements}项
+- 技能覆盖度：涵盖${categories}等${[...new Set(selectedSkills.map(s => s.category))].length}个专业领域
+
 要求：
-1. 180-220字的专业技能概述
-2. 突出技能的现代化和数字化特点
-3. 体现AI时代的技能适应性
-4. 结合工作经验，展现实际应用能力
-5. 包含量化成果（如果有工作成就的话）
-6. 语言简洁专业，适合简历使用
-7. 体现技能组合的协同效应
-8. 展现学习能力和技术敏感度
+1. 200-250字的专业技能总结
+2. **必须包含量化数据**：技能数量、工作经历、具体成就等
+3. 结合工作经验中的实际应用场景
+4. 突出技能的现代化和数字化特点
+5. 体现AI时代的适应能力和学习能力
+6. 如果有工作成就，要在总结中体现具体的价值贡献
+7. 展现技能组合的协同效应
+8. 语言简洁专业，适合简历使用
+9. 开头要有一个强有力的概括句
+10. 体现持续学习和技术敏感度
+
+总结结构建议：
+第一句：整体技能概况（包含数量）
+第二部分：核心技能应用和价值
+第三部分：工作成果和量化成就
+第四句：学习能力和发展潜力
 
 请直接返回技能总结文字，不要包含其他内容：`
 
-      const systemMessage = '你是专业的简历写作专家，擅长为求职者撰写简洁有力的技能总结，特别理解AI时代的技能要求。你能巧妙地将技能和工作经验结合，展现求职者的综合实力。'
+      const systemMessage = `你是资深的简历写作专家和HR顾问，拥有15年的招聘和人才评估经验。你特别擅长：
+1. 将技能和工作经验有机结合，展现候选人的综合实力
+2. 运用量化数据增强说服力
+3. 突出AI时代的核心竞争力
+4. 用简洁有力的语言展现最大价值
+你深知什么样的技能总结能让HR眼前一亮并产生面试邀请的冲动。`
+
       const summary = await callAIService(prompt, systemMessage)
-      setSkillsSummary(summary.trim())
+      
+      // 如果生成的总结没有量化数据，进行二次优化
+      const hasQuantification = /\d+/.test(summary)
+      if (!hasQuantification && quantifiedData.totalAchievements > 0) {
+        const optimizationPrompt = `
+请优化以下技能总结，确保包含更多量化信息：
+
+当前总结：${summary}
+
+可用的量化数据：
+- 掌握${quantifiedData.totalSkills}项专业技能
+- ${quantifiedData.totalExperience}段工作经历
+- ${quantifiedData.totalAchievements}项具体成就
+- 涵盖${[...new Set(selectedSkills.map(s => s.category))].length}个技能领域
+
+要求：将这些数字自然地融入总结中，使其更有说服力。保持200-250字。
+
+请直接返回优化后的总结：`
+
+        try {
+          const optimizedSummary = await callAIService(optimizationPrompt, systemMessage)
+          setSkillsSummary(optimizedSummary.trim())
+        } catch (error) {
+          setSkillsSummary(summary.trim())
+        }
+      } else {
+        setSkillsSummary(summary.trim())
+      }
+
     } catch (error) {
       console.error('技能总结生成失败:', error)
-      const skillNames = selectedSkills.map(s => s.name).join('、')
-      const mockSummary = `本人掌握${selectedSkills.length}项专业技能，涵盖${[...new Set(selectedSkills.map(s => s.category))].join('、')}等现代化技能领域。精通${skillNames}，具备强大的数字化办公能力和AI工具应用经验。能够运用数据分析和自动化技术提升工作效率，适应快速变化的技术环境，持续学习新兴技术以保持竞争优势。`
-      setSkillsSummary(mockSummary)
+      
+      // 生成智能备选总结
+      const fallbackSummary = generateIntelligentFallbackSummary(selectedSkills, experience, {
+        totalSkills: selectedSkills.length,
+        techSkills: selectedSkills.filter(s => 
+          ['编程语言', '技术工具', '数据分析', '新兴技术'].includes(s.category)
+        ).length,
+        officeSkills: selectedSkills.filter(s => 
+          ['办公软件', '沟通协作'].includes(s.category)
+        ).length,
+        totalExperience: experience.length,
+        internshipCount: experience.filter(e => e.isInternship).length,
+        totalAchievements: experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)
+      })
+      setSkillsSummary(fallbackSummary)
     }
     setIsGeneratingSummary(false)
+  }
+
+  // 智能备选总结生成函数
+  const generateIntelligentFallbackSummary = (skills: any[], experiences: Experience[], quantData: any) => {
+    const skillNames = skills.map(s => s.name).slice(0, 6).join('、')
+    const categories = [...new Set(skills.map(s => s.category))].join('、')
+    
+    let summary = `本人掌握${quantData.totalSkills}项专业技能，涵盖${categories}等现代化技能领域。`
+    
+    if (quantData.techSkills > 0) {
+      summary += `精通${skillNames}等核心技术，`
+    }
+    
+    if (quantData.totalExperience > 0) {
+      summary += `拥有${quantData.totalExperience}段${quantData.internshipCount > 0 ? '工作和实习' : '工作'}经历，`
+    }
+    
+    if (quantData.totalAchievements > 0) {
+      summary += `累计实现${quantData.totalAchievements}项量化成就。`
+    } else {
+      summary += '具备扎实的专业基础。'
+    }
+    
+    summary += `能够熟练运用数据分析和自动化技术提升工作效率，具备强大的AI工具应用能力。`
+    summary += `适应快速变化的技术环境，持续学习新兴技术，具备优秀的问题解决能力和团队协作精神。`
+    
+    return summary
   }
 
   useEffect(() => {
@@ -694,647 +812,787 @@ ${experienceInfo}
   }
 
   return (
-   <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-     <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
-       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-         <div className="flex justify-between items-center py-4">
-           <button
-             onClick={onBack}
-             className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-           >
-             <ArrowLeft className="h-5 w-5" />
-             <span>返回上一步</span>
-           </button>
-           
-           <div className="flex items-center space-x-2">
-             <Brain className="h-6 w-6 text-blue-600" />
-             <span className="text-lg font-semibold text-gray-900">AI智能技能推荐</span>
-           </div>
-           
-           <div className="text-sm text-gray-500">
-             已选择 {selectedCount + customSkillsCount} 项技能
-           </div>
-         </div>
-       </div>
-     </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <button
+              onClick={onBack}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span>返回上一步</span>
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <Brain className="h-6 w-6 text-blue-600" />
+              <span className="text-lg font-semibold text-gray-900">AI智能技能推荐</span>
+            </div>
+            
+            <div className="text-sm text-gray-500">
+              已选择 {selectedCount + customSkillsCount} 项技能
+            </div>
+          </div>
+        </div>
+      </header>
 
-     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-       <div className="mb-8">
-         <div className="border-b border-gray-200">
-           <nav className="-mb-px flex space-x-8">
-             <button
-               onClick={() => setShowAnalysisTab('skills')}
-               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                 showAnalysisTab === 'skills'
-                   ? 'border-blue-500 text-blue-600'
-                   : 'border-transparent text-gray-500 hover:text-gray-700'
-               }`}
-             >
-               <Zap className="inline h-4 w-4 mr-1" />
-               AI技能推荐
-             </button>
-             <button
-               onClick={() => setShowAnalysisTab('analysis')}
-               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                 showAnalysisTab === 'analysis'
-                   ? 'border-blue-500 text-blue-600'
-                   : 'border-transparent text-gray-500 hover:text-gray-700'
-               }`}
-             >
-               <TrendingUp className="inline h-4 w-4 mr-1" />
-               行业分析
-             </button>
-             <button
-               onClick={() => setShowAnalysisTab('summary')}
-               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                 showAnalysisTab === 'summary'
-                   ? 'border-blue-500 text-blue-600'
-                   : 'border-transparent text-gray-500 hover:text-gray-700'
-               }`}
-             >
-               <FileText className="inline h-4 w-4 mr-1" />
-               技能总结
-             </button>
-           </nav>
-         </div>
-       </div>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-8">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setShowAnalysisTab('skills')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  showAnalysisTab === 'skills'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Zap className="inline h-4 w-4 mr-1" />
+                AI技能推荐
+              </button>
+              <button
+                onClick={() => setShowAnalysisTab('analysis')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  showAnalysisTab === 'analysis'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <TrendingUp className="inline h-4 w-4 mr-1" />
+                行业分析
+              </button>
+              <button
+                onClick={() => setShowAnalysisTab('summary')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  showAnalysisTab === 'summary'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <FileText className="inline h-4 w-4 mr-1" />
+                技能总结
+              </button>
+            </nav>
+          </div>
+        </div>
 
-       {showAnalysisTab === 'skills' && (
-         <div className="space-y-8">
-           {aiError && (
-             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
-               <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-               <div>
-                 <h3 className="text-sm font-medium text-yellow-800">AI服务提示</h3>
-                 <p className="text-sm text-yellow-700 mt-1">{aiError}</p>
-               </div>
-             </div>
-           )}
+        {showAnalysisTab === 'skills' && (
+          <div className="space-y-8">
+            {aiError && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">AI服务提示</h3>
+                  <p className="text-sm text-yellow-700 mt-1">{aiError}</p>
+                </div>
+              </div>
+            )}
 
-           <div className="bg-white rounded-2xl shadow-lg p-8">
-             <div className="flex justify-between items-center mb-6">
-               <div>
-                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                   <Brain className="inline h-8 w-8 text-blue-500 mr-2" />
-                   AI智能技能推荐
-                 </h1>
-                 <p className="text-gray-600">
-                   基于您的背景和2024-2025年市场趋势，AI为您精选了以下技能，点击编辑可自定义
-                 </p>
-               </div>
-               <button
-                 onClick={regenerateRecommendations}
-                 disabled={isRegenerating}
-                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                   isRegenerating
-                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                     : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                 }`}
-               >
-                 <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-                 <span>{isRegenerating ? 'AI重新分析中...' : '重新推荐'}</span>
-               </button>
-             </div>
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    <Brain className="inline h-8 w-8 text-blue-500 mr-2" />
+                    AI智能技能推荐
+                  </h1>
+                  <p className="text-gray-600">
+                    基于您的背景和2024-2025年市场趋势，AI为您精选了以下技能，点击编辑可自定义
+                  </p>
+                </div>
+                <button
+                  onClick={regenerateRecommendations}
+                  disabled={isRegenerating}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    isRegenerating
+                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
+                  <span>{isRegenerating ? 'AI重新分析中...' : '重新推荐'}</span>
+                </button>
+              </div>
 
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-               {recommendedSkills.map((skill, index) => {
-                 const isEditing = editingSkill === `rec-${index}`
-                 return (
-                   <div
-                     key={index}
-                     className={`p-5 border-2 rounded-xl transition-all hover:shadow-md ${
-                       skill.selected
-                         ? 'border-blue-500 bg-blue-50'
-                         : 'border-gray-200 hover:border-gray-300'
-                     } ${isEditing ? 'ring-2 ring-purple-500' : ''}`}
-                   >
-                     {isEditing && editingSkillData ? (
-                       // 编辑模式
-                       <div className="space-y-4">
-                         <div className="flex items-center justify-between">
-                           <h3 className="font-bold text-purple-700">编辑技能</h3>
-                           <div className="flex space-x-2">
-                             <button
-                               onClick={saveEditingSkill}
-                               className="text-green-600 hover:text-green-800"
-                             >
-                               <Save className="h-4 w-4" />
-                             </button>
-                             <button
-                               onClick={cancelEditingSkill}
-                               className="text-gray-600 hover:text-gray-800"
-                             >
-                               <X className="h-4 w-4" />
-                             </button>
-                           </div>
-                         </div>
-                         
-                         <div className="space-y-3">
-                           <div>
-                             <label className="block text-sm font-medium text-gray-700 mb-1">技能名称</label>
-                             <input
-                               type="text"
-                               value={editingSkillData.name}
-                               onChange={(e) => setEditingSkillData(prev => prev ? {...prev, name: e.target.value} : null)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                             />
-                           </div>
-                           
-                           <div className="grid grid-cols-2 gap-3">
-                             <div>
-                               <label className="block text-sm font-medium text-gray-700 mb-1">熟练程度</label>
-                               <select
-                                 value={editingSkillData.level}
-                                 onChange={(e) => setEditingSkillData(prev => prev ? {...prev, level: e.target.value as any} : null)}
-                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                               >
-                                 <option value="understand">了解</option>
-                                 <option value="proficient">熟练</option>
-                                 <option value="expert">精通</option>
-                               </select>
-                             </div>
-                             
-                             <div>
-                               <label className="block text-sm font-medium text-gray-700 mb-1">技能分类</label>
-                               <input
-                                 type="text"
-                                 value={editingSkillData.category}
-                                 onChange={(e) => setEditingSkillData(prev => prev ? {...prev, category: e.target.value} : null)}
-                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                               />
-                             </div>
-                           </div>
-                           
-                           <div>
-                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                               能力描述
-                               {isGeneratingDescription === editingSkillData.name && (
-                                 <span className="ml-2 text-purple-600 text-xs">AI生成中...</span>
-                               )}
-                             </label>
-                             <textarea
-                               value={editingSkillData.description || ''}
-                               onChange={(e) => setEditingSkillData(prev => prev ? {...prev, description: e.target.value} : null)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                               rows={3}
-                               placeholder="描述您用这个技能能够做什么..."
-                             />
-                             <button
-                               onClick={() => editingSkillData && generateSkillDescription(
-                                 editingSkillData.name, 
-                                 editingSkillData.level, 
-                                 editingSkillData.category
-                               ).then(desc => setEditingSkillData(prev => prev ? {...prev, description: desc} : null))}
-                               disabled={isGeneratingDescription === editingSkillData.name}
-                               className="mt-2 text-sm text-purple-600 hover:text-purple-800 flex items-center"
-                             >
-                               <Sparkles className="h-3 w-3 mr-1" />
-                               AI重新生成描述
-                             </button>
-                           </div>
-                         </div>
-                       </div>
-                     ) : (
-                       // 显示模式
-                       <div onClick={() => toggleSkillSelection(index)} className="cursor-pointer">
-                         <div className="flex items-start justify-between mb-3">
-                           <div className="flex items-center space-x-2">
-                             {skill.selected ? (
-                               <CheckCircle className="h-5 w-5 text-blue-600" />
-                             ) : (
-                               <Circle className="h-5 w-5 text-gray-400" />
-                             )}
-                             <span className="font-bold text-gray-900">{skill.name}</span>
-                           </div>
-                           <div className="flex flex-col items-end space-y-1">
-                             <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
-                               {levelLabels[skill.level]}
-                             </span>
-                             <button
-                               onClick={(e) => {
-                                 e.stopPropagation()
-                                 startEditingSkill(index)
-                               }}
-                               className="text-purple-600 hover:text-purple-800"
-                               title="编辑技能"
-                             >
-                               <Edit3 className="h-3 w-3" />
-                             </button>
-                           </div>
-                         </div>
-                         
-                         <div className="mb-3">
-                           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                             {skill.category}
-                           </span>
-                           {skill.trend && (
-                             <span className="ml-2 text-xs">
-                               {trendIcons[skill.trend]} {skill.trend === 'rising' ? '上升趋势' : skill.trend === 'stable' ? '稳定需求' : '下降趋势'}
-                             </span>
-                           )}
-                         </div>
-                         
-                         {/* 技能描述 - 新增 */}
-                         {skill.description && (
-                           <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                             <p className="text-sm text-gray-700 font-medium mb-1">能力描述：</p>
-                             <p className="text-sm text-gray-600 leading-relaxed">{skill.description}</p>
-                           </div>
-                         )}
-                         
-                         <p className="text-sm text-gray-700 mb-3 leading-relaxed">{skill.reason}</p>
-                         
-                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                           <div className="flex items-center">
-                             <span>💰 {skill.salaryImpact}</span>
-                           </div>
-                           <div className="flex items-center">
-                             <span>⏱️ {skill.learningTime}</span>
-                           </div>
-                         </div>
-                       </div>
-                     )}
-                   </div>
-                 )
-               })}
-             </div>
-           </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {recommendedSkills.map((skill, index) => {
+                  const isEditing = editingSkill === `rec-${index}`
+                  return (
+                    <div
+                      key={index}
+                      className={`p-5 border-2 rounded-xl transition-all hover:shadow-md ${
+                        skill.selected
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${isEditing ? 'ring-2 ring-purple-500' : ''}`}
+                    >
+                      {isEditing && editingSkillData ? (
+                        // 编辑模式
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-bold text-purple-700">编辑技能</h3>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={saveEditingSkill}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                <Save className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditingSkill}
+                                className="text-gray-600 hover:text-gray-800"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">技能名称</label>
+                              <input
+                                type="text"
+                                value={editingSkillData.name}
+                                onChange={(e) => setEditingSkillData(prev => prev ? {...prev, name: e.target.value} : null)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">熟练程度</label>
+                                <select
+                                  value={editingSkillData.level}
+                                  onChange={(e) => setEditingSkillData(prev => prev ? {...prev, level: e.target.value as any} : null)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                >
+                                  <option value="understand">了解</option>
+                                  <option value="proficient">熟练</option>
+                                  <option value="expert">精通</option>
+                                </select>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">技能分类</label>
+                                <input
+                                  type="text"
+                                  value={editingSkillData.category}
+                                  onChange={(e) => setEditingSkillData(prev => prev ? {...prev, category: e.target.value} : null)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                能力描述
+                                {isGeneratingDescription === editingSkillData.name && (
+                                  <span className="ml-2 text-purple-600 text-xs">AI生成中...</span>
+                                )}
+                              </label>
+                              <textarea
+                                value={editingSkillData.description || ''}
+                                onChange={(e) => setEditingSkillData(prev => prev ? {...prev, description: e.target.value} : null)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                rows={3}
+                                placeholder="描述您用这个技能能够做什么..."
+                              />
+                              <button
+                                onClick={() => editingSkillData && generateSkillDescription(
+                                  editingSkillData.name, 
+                                  editingSkillData.level, 
+                                  editingSkillData.category
+                                ).then(desc => setEditingSkillData(prev => prev ? {...prev, description: desc} : null))}
+                                disabled={isGeneratingDescription === editingSkillData.name}
+                                className="mt-2 text-sm text-purple-600 hover:text-purple-800 flex items-center"
+                              >
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                AI重新生成描述
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // 显示模式
+                        <div onClick={() => toggleSkillSelection(index)} className="cursor-pointer">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              {skill.selected ? (
+                                <CheckCircle className="h-5 w-5 text-blue-600" />
+                              ) : (
+                                <Circle className="h-5 w-5 text-gray-400" />
+                              )}
+                              <span className="font-bold text-gray-900">{skill.name}</span>
+                            </div>
+                            <div className="flex flex-col items-end space-y-1">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
+                                {levelLabels[skill.level]}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  startEditingSkill(index)
+                                }}
+                                className="text-purple-600 hover:text-purple-800"
+                                title="编辑技能"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-3">
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              {skill.category}
+                            </span>
+                            {skill.trend && (
+                              <span className="ml-2 text-xs">
+                                {trendIcons[skill.trend]} {skill.trend === 'rising' ? '上升趋势' : skill.trend === 'stable' ? '稳定需求' : '下降趋势'}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* 技能描述 */}
+                          {skill.description && (
+                            <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                              <p className="text-sm text-gray-700 font-medium mb-1">能力描述：</p>
+                              <p className="text-sm text-gray-600 leading-relaxed">{skill.description}</p>
+                            </div>
+                          )}
+                          
+                          <p className="text-sm text-gray-700 mb-3 leading-relaxed">{skill.reason}</p>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                            <div className="flex items-center">
+                              <span>💰 {skill.salaryImpact}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span>⏱️ {skill.learningTime}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
 
-           <div className="bg-white rounded-2xl shadow-lg p-8">
-             <div className="flex justify-between items-center mb-6">
-               <h2 className="text-2xl font-bold text-gray-900">自定义技能</h2>
-               <button
-                 onClick={() => setShowCustomForm(true)}
-                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-               >
-                 <Plus className="h-4 w-4" />
-                 <span>添加技能</span>
-               </button>
-             </div>
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">自定义技能</h2>
+                <button
+                  onClick={() => setShowCustomForm(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>添加技能</span>
+                </button>
+              </div>
 
-             {showCustomForm && (
-               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">技能名称</label>
-                     <input
-                       type="text"
-                       value={newSkill.name}
-                       onChange={(e) => setNewSkill(prev => ({ ...prev, name: e.target.value }))}
-                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                       placeholder="如：PowerFactory"
-                     />
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">掌握程度</label>
-                     <select
-                       value={newSkill.level}
-                       onChange={(e) => setNewSkill(prev => ({ ...prev, level: e.target.value as any }))}
-                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                     >
-                       <option value="understand">了解</option>
-                       <option value="proficient">熟练</option>
-                       <option value="expert">精通</option>
-                     </select>
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">技能分类</label>
-                     <input
-                       type="text"
-                       value={newSkill.category}
-                       onChange={(e) => setNewSkill(prev => ({ ...prev, category: e.target.value }))}
-                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                       placeholder="如：专业软件"
-                     />
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                       技能描述 
-                       <span className="text-gray-500 text-xs">(留空将AI自动生成)</span>
-                     </label>
-                     <input
-                       type="text"
-                       value={newSkill.description}
-                       onChange={(e) => setNewSkill(prev => ({ ...prev, description: e.target.value }))}
-                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                       placeholder="如：能够进行电力系统建模和故障分析"
-                     />
-                   </div>
-                 </div>
-                 <div className="flex space-x-2">
-                   <button
-                     onClick={handleAddCustomSkill}
-                     disabled={!newSkill.name.trim()}
-                     className={`px-4 py-2 rounded-lg transition-colors ${
-                       newSkill.name.trim()
-                         ? 'bg-blue-600 text-white hover:bg-blue-700'
-                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                     }`}
-                   >
-                     确认添加
-                   </button>
-                   <button
-                     onClick={() => setShowCustomForm(false)}
-                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                   >
-                     取消
-                   </button>
-                 </div>
-               </div>
-             )}
+              {showCustomForm && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">技能名称</label>
+                      <input
+                        type="text"
+                        value={newSkill.name}
+                        onChange={(e) => setNewSkill(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="如：PowerFactory"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">掌握程度</label>
+                      <select
+                        value={newSkill.level}
+                        onChange={(e) => setNewSkill(prev => ({ ...prev, level: e.target.value as any }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="understand">了解</option>
+                        <option value="proficient">熟练</option>
+                        <option value="expert">精通</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">技能分类</label>
+                      <input
+                        type="text"
+                        value={newSkill.category}
+                        onChange={(e) => setNewSkill(prev => ({ ...prev, category: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="如：专业软件"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        技能描述 
+                        <span className="text-gray-500 text-xs">(留空将AI自动生成)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newSkill.description}
+                        onChange={(e) => setNewSkill(prev => ({ ...prev, description: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="如：能够进行电力系统建模和故障分析"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleAddCustomSkill}
+                      disabled={!newSkill.name.trim()}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        newSkill.name.trim()
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      确认添加
+                    </button>
+                    <button
+                      onClick={() => setShowCustomForm(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
 
-             {customSkills && customSkills.length > 0 ? (
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {customSkills.map((skill) => (
-                   <div key={skill.id} className="p-4 border border-gray-200 rounded-lg bg-green-50">
-                     <div className="flex justify-between items-start mb-2">
-                       <div className="flex items-center space-x-2">
-                         <CheckCircle className="h-5 w-5 text-green-600" />
-                         <span className="font-semibold text-gray-900">{skill.name}</span>
-                       </div>
-                       <div className="flex space-x-1">
-                         <button
-                           onClick={() => setEditingSkill(editingSkill === skill.id ? null : skill.id)}
-                           className="text-blue-600 hover:text-blue-800"
-                         >
-                           <Edit3 className="h-4 w-4" />
-                         </button>
-                         <button
-                           onClick={() => removeCustomSkill(skill.id)}
-                           className="text-red-600 hover:text-red-800"
-                         >
-                           <Trash2 className="h-4 w-4" />
-                         </button>
-                       </div>
-                     </div>
-                     
-                     <div className="mb-2">
-                       <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
-                         {levelLabels[skill.level]}
-                       </span>
-                       <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                         {skill.category}
-                       </span>
-                     </div>
-                     
-                     {skill.description && (
-                       <div className="mt-2 p-2 bg-white rounded border">
-                         <p className="text-xs text-gray-500 mb-1">能力描述：</p>
-                         <p className="text-sm text-gray-700">{skill.description}</p>
-                       </div>
-                     )}
-                   </div>
-                 ))}
-               </div>
-             ) : (
-               <div className="text-center py-8 text-gray-500">
-                 <Plus className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                 <p>还没有添加自定义技能</p>
-                 <p className="text-sm">点击上方按钮添加您的专业技能</p>
-               </div>
-             )}
-           </div>
-         </div>
-       )}
+              {customSkills && customSkills.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {customSkills.map((skill) => (
+                    <div key={skill.id} className="p-4 border border-gray-200 rounded-lg bg-green-50">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span className="font-semibold text-gray-900">{skill.name}</span>
+                        </div>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => setEditingSkill(editingSkill === skill.id ? null : skill.id)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => removeCustomSkill(skill.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
+                          {levelLabels[skill.level]}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          {skill.category}
+                        </span>
+                      </div>
+                      
+                      {skill.description && (
+                        <div className="mt-2 p-2 bg-white rounded border">
+                          <p className="text-xs text-gray-500 mb-1">能力描述：</p>
+                          <p className="text-sm text-gray-700">{skill.description}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Plus className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>还没有添加自定义技能</p>
+                  <p className="text-sm">点击上方按钮添加您的专业技能</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-       {/* 行业分析和技能总结 tabs 保持原样 */}
-       {showAnalysisTab === 'analysis' && (
-         <div className="space-y-8">
-           {/* 行业分析内容保持原有代码不变 */}
-           {isAnalyzing ? (
-             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-               <div className="animate-spin w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-               <h3 className="text-lg font-semibold text-gray-900 mb-2">AI正在分析行业趋势</h3>
-               <p className="text-gray-600">分析最新市场数据和技能需求...</p>
-             </div>
-           ) : industryAnalysis ? (
-             <div className="space-y-6">
-               <div className="bg-white rounded-2xl shadow-lg p-8">
-                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                   <TrendingUp className="h-6 w-6 text-green-600 mr-2" />
-                   当前行业热门趋势
-                 </h2>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                   {industryAnalysis.trends.map((trend, index) => (
-                     <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
-                       <div className="flex items-center space-x-2">
-                         <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                           {index + 1}
-                         </span>
-                         <span className="text-gray-900 font-medium">{trend}</span>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
+        {showAnalysisTab === 'analysis' && (
+          <div className="space-y-8">
+            {isAnalyzing ? (
+              <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                <div className="animate-spin w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">AI正在分析行业趋势</h3>
+                <p className="text-gray-600">分析最新市场数据和技能需求...</p>
+              </div>
+            ) : industryAnalysis ? (
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                    <TrendingUp className="h-6 w-6 text-green-600 mr-2" />
+                    当前行业热门趋势
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {industryAnalysis.trends.map((trend, index) => (
+                      <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                            {index + 1}
+                          </span>
+                          <span className="text-gray-900 font-medium">{trend}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-               <div className="bg-white rounded-2xl shadow-lg p-8">
-                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                   <Zap className="h-6 w-6 text-blue-600 mr-2" />
-                   快速兴起的新兴技能
-                 </h2>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                   {industryAnalysis.emergingSkills.map((skill, index) => (
-                     <div key={index} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                       <div className="flex items-center space-x-2">
-                         <span className="text-blue-600">🚀</span>
-                         <span className="text-gray-900 font-medium">{skill}</span>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                    <Zap className="h-6 w-6 text-blue-600 mr-2" />
+                    快速兴起的新兴技能
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {industryAnalysis.emergingSkills.map((skill, index) => (
+                      <div key={index} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-blue-600">🚀</span>
+                          <span className="text-gray-900 font-medium">{skill}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-               {industryAnalysis.decliningSkills && industryAnalysis.decliningSkills.length > 0 && (
-                 <div className="bg-white rounded-2xl shadow-lg p-8">
-                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                     <AlertCircle className="h-6 w-6 text-red-600 mr-2" />
-                     正在衰落的技能
-                   </h2>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                     {industryAnalysis.decliningSkills.map((skill, index) => (
-                       <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-4">
-                         <div className="flex items-center space-x-2">
-                           <span className="text-red-600">📉</span>
-                           <span className="text-gray-900 font-medium">{skill}</span>
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               )}
+                {industryAnalysis.decliningSkills && industryAnalysis.decliningSkills.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-lg p-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                      <AlertCircle className="h-6 w-6 text-red-600 mr-2" />
+                      正在衰落的技能
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {industryAnalysis.decliningSkills.map((skill, index) => (
+                        <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-red-600">📉</span>
+                            <span className="text-gray-900 font-medium">{skill}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-               <div className="bg-white rounded-2xl shadow-lg p-8">
-                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                   <Brain className="h-6 w-6 text-purple-600 mr-2" />
-                   AI对行业的影响
-                 </h2>
-                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                   <p className="text-gray-800 leading-relaxed">{industryAnalysis.aiImpact}</p>
-                 </div>
-               </div>
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                    <Brain className="h-6 w-6 text-purple-600 mr-2" />
+                    AI对行业的影响
+                  </h2>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                    <p className="text-gray-800 leading-relaxed">{industryAnalysis.aiImpact}</p>
+                  </div>
+                </div>
 
-               <div className="bg-white rounded-2xl shadow-lg p-8">
-                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                   <Target className="h-6 w-6 text-orange-600 mr-2" />
-                   远程办公的技能要求变化
-                 </h2>
-                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                   <p className="text-gray-800 leading-relaxed">{industryAnalysis.remoteWorkImpact}</p>
-                 </div>
-               </div>
-             </div>
-           ) : (
-             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-               <TrendingUp className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-               <p className="text-gray-500">行业分析数据加载中...</p>
-             </div>
-           )}
-         </div>
-       )}
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                    <Target className="h-6w-6 text-orange-600 mr-2" />
+                    远程办公的技能要求变化
+                  </h2>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                    <p className="text-gray-800 leading-relaxed">{industryAnalysis.remoteWorkImpact}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                <TrendingUp className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">行业分析数据加载中...</p>
+              </div>
+            )}
+          </div>
+        )}
 
-       {showAnalysisTab === 'summary' && (
-         <div className="space-y-8">
-           <div className="bg-white rounded-2xl shadow-lg p-8">
-             <div className="flex justify-between items-center mb-6">
-               <div>
-                 <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                   <FileText className="h-6 w-6 text-purple-600 mr-2" />
-                   AI技能总结
-                 </h2>
-                 <p className="text-gray-600 text-sm mt-1">基于您选择的技能和工作经验生成专业的技能概述</p>
-               </div>
-               <button
-                 onClick={generateSkillsSummary}
-                 disabled={isGeneratingSummary || (selectedCount + customSkillsCount === 0)}
-                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                   isGeneratingSummary || (selectedCount + customSkillsCount === 0)
-                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                     : 'bg-purple-600 text-white hover:bg-purple-700'
-                 }`}
-               >
-                 <Wand2 className={`h-4 w-4 ${isGeneratingSummary ? 'animate-spin' : ''}`} />
-                 <span>{isGeneratingSummary ? 'AI生成中...' : 'AI生成总结'}</span>
-               </button>
-             </div>
+        {showAnalysisTab === 'summary' && (
+          <div className="space-y-8">
+            {/* 新增：数据分析卡片 */}
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                <TrendingUp className="h-6 w-6 text-blue-600 mr-2" />
+                技能数据分析
+              </h2>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-3xl font-bold text-blue-600 mb-2">
+                    {selectedCount + customSkillsCount}
+                  </div>
+                  <div className="text-sm text-blue-700 font-medium">总技能数</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    推荐{selectedCount}项 + 自定义{customSkillsCount}项
+                  </div>
+                </div>
+                
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {experience.length}
+                  </div>
+                  <div className="text-sm text-green-700 font-medium">工作经历</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {experience.filter(e => e.isInternship).length}段实习经历
+                  </div>
+                </div>
+                
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-3xl font-bold text-purple-600 mb-2">
+                    {experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)}
+                  </div>
+                  <div className="text-sm text-purple-700 font-medium">量化成就</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    具体的工作成果
+                  </div>
+                </div>
+                
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-3xl font-bold text-orange-600 mb-2">
+                    {[...new Set([...recommendedSkills.filter(s => s.selected), ...customSkills].map(s => s.category))].length}
+                  </div>
+                  <div className="text-sm text-orange-700 font-medium">技能领域</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    跨领域综合能力
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-2">竞争力评估</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>技能现代化程度</span>
+                    <div className="flex items-center">
+                      <div className="w-20 h-2 bg-gray-200 rounded-full mr-2">
+                        <div 
+                          className="h-2 bg-blue-500 rounded-full" 
+                          style={{ width: `${Math.min(100, ((recommendedSkills.filter(s => s.selected && s.trend === 'rising').length) / Math.max(selectedCount, 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-blue-600 font-medium">
+                        {Math.round(((recommendedSkills.filter(s => s.selected && s.trend === 'rising').length) / Math.max(selectedCount, 1)) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>实践经验丰富度</span>
+                    <div className="flex items-center">
+                      <div className="w-20 h-2 bg-gray-200 rounded-full mr-2">
+                        <div 
+                          className="h-2 bg-green-500 rounded-full" 
+                          style={{ width: `${Math.min(100, experience.length * 25)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-green-600 font-medium">
+                        {Math.min(100, experience.length * 25)}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>成就量化程度</span>
+                    <div className="flex items-center">
+                      <div className="w-20 h-2 bg-gray-200 rounded-full mr-2">
+                        <div 
+                          className="h-2 bg-purple-500 rounded-full" 
+                          style={{ width: `${Math.min(100, experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0) * 20)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-purple-600 font-medium">
+                        {Math.min(100, experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0) * 20)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-             {skillsSummary ? (
-               <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                 <textarea
-                   value={skillsSummary}
-                   onChange={(e) => setSkillsSummary(e.target.value)}
-                   className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
-                   rows={6}
-                   placeholder="AI生成的技能总结将显示在这里..."
-                 />
-                 <p className="text-sm text-purple-600 mt-3">💡 您可以编辑上面的内容来完善技能总结</p>
-               </div>
-             ) : (
-               <div className="text-center py-12 text-gray-500">
-                 <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                 <p className="text-lg mb-2">还没有生成技能总结</p>
-                 <p className="text-sm">选择技能后点击"AI生成总结"按钮</p>
-               </div>
-             )}
-           </div>
+            {/* 原有的技能总结区域 */}
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                    <FileText className="h-6 w-6 text-purple-600 mr-2" />
+                    AI技能总结
+                  </h2>
+                  <p className="text-gray-600 text-sm mt-1">基于您的技能、工作经验和量化成就生成专业总结</p>
+                </div>
+                <button
+                  onClick={generateSkillsSummary}
+                  disabled={isGeneratingSummary || (selectedCount + customSkillsCount === 0)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    isGeneratingSummary || (selectedCount + customSkillsCount === 0)
+                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  <Wand2 className={`h-4 w-4 ${isGeneratingSummary ? 'animate-spin' : ''}`} />
+                  <span>{isGeneratingSummary ? 'AI深度分析生成中...' : 'AI生成增强总结'}</span>
+                </button>
+              </div>
 
-           {(selectedCount > 0 || customSkillsCount > 0) && (
-             <div className="bg-white rounded-2xl shadow-lg p-8">
-               <h3 className="text-xl font-bold text-gray-900 mb-4">已选择的技能预览</h3>
-               <div className="grid grid-cols-1 gap-4">
-                 {recommendedSkills.filter(skill => skill.selected).map((skill, index) => (
-                   <div key={`rec-${index}`} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                     <div className="flex items-center justify-between mb-2">
-                       <div className="flex items-center gap-2">
-                         <span className="font-medium text-gray-900">{skill.name}</span>
-                         <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
-                           {levelLabels[skill.level]}
-                         </span>
-                         <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">{skill.category}</span>
-                       </div>
-                       <span className="text-xs text-gray-500">{trendIcons[skill.trend || 'stable']}</span>
-                     </div>
-                     {skill.description && (
-                       <p className="text-sm text-gray-700 mt-2">{skill.description}</p>
-                     )}
-                   </div>
-                 ))}
-                 {customSkills.map((skill) => (
-                   <div key={skill.id} className="bg-green-50 border border-green-200 rounded-lg p-4">
-                     <div className="flex items-center gap-2 mb-2">
-                       <span className="font-medium text-gray-900">{skill.name}</span>
-                       <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
-                         {levelLabels[skill.level]}
-                       </span>
-                       <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">{skill.category}</span>
-                     </div>
-                     {skill.description && (
-                       <p className="text-sm text-gray-700 mt-2">{skill.description}</p>
-                     )}
-                   </div>
-                 ))}
-               </div>
-             </div>
-           )}
-         </div>
-       )}
+              {skillsSummary ? (
+                <div className="space-y-4">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                    <textarea
+                      value={skillsSummary}
+                      onChange={(e) => setSkillsSummary(e.target.value)}
+                      className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
+                      rows={8}
+                      placeholder="AI生成的技能总结将显示在这里..."
+                    />
+                    <div className="flex items-center justify-between mt-3">
+                      <p className="text-sm text-purple-600">💡 您可以编辑上面的内容来完善技能总结</p>
+                      <div className="text-xs text-gray-500">
+                        字数：{skillsSummary.length} / 建议200-250字
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 总结质量评估 */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">总结质量评估</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="text-center">
+                        <div className={`text-lg font-bold ${skillsSummary.length >= 200 && skillsSummary.length <= 250 ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {skillsSummary.length >= 200 && skillsSummary.length <= 250 ? '✓' : '!'}
+                        </div>
+                        <div className="text-blue-700">字数适中</div>
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-lg font-bold ${/\d+/.test(skillsSummary) ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {/\d+/.test(skillsSummary) ? '✓' : '!'}
+                        </div>
+                        <div className="text-blue-700">包含量化</div>
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-lg font-bold ${[...recommendedSkills.filter(s => s.selected), ...customSkills].some(s => skillsSummary.includes(s.name)) ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {[...recommendedSkills.filter(s => s.selected), ...customSkills].some(s => skillsSummary.includes(s.name)) ? '✓' : '!'}
+                        </div>
+                        <div className="text-blue-700">技能体现</div>
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-lg font-bold ${experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? '✓' : '!'}
+                        </div>
+                        <div className="text-blue-700">经验结合</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg mb-2">还没有生成技能总结</p>
+                  <p className="text-sm">选择技能后点击"AI生成增强总结"按钮</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    新版本将结合您的工作经验和量化成就生成更有说服力的总结
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            {(selectedCount > 0 || customSkillsCount > 0) && (
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">已选择的技能预览</h3>
+                <div className="grid grid-cols-1 gap-4">
+                  {recommendedSkills.filter(skill => skill.selected).map((skill, index) => (
+                    <div key={`rec-${index}`} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{skill.name}</span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
+                            {levelLabels[skill.level]}
+                          </span>
+                          <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">{skill.category}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{trendIcons[skill.trend || 'stable']}</span>
+                      </div>
+                      {skill.description && (
+                        <p className="text-sm text-gray-700 mt-2">{skill.description}</p>
+                      )}
+                    </div>
+                  ))}
+                  {customSkills.map((skill) => (
+                    <div key={skill.id} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium text-gray-900">{skill.name}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${levelColors[skill.level]}`}>
+                          {levelLabels[skill.level]}
+                        </span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">{skill.category}</span>
+                      </div>
+                      {skill.description && (
+                        <p className="text-sm text-gray-700 mt-2">{skill.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-       {(selectedCount > 0 || customSkillsCount > 0) && (
-         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6">
-           <h3 className="text-lg font-semibold text-blue-900 mb-4">🎯 AI分析完成情况</h3>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-             <div className="text-center">
-               <div className="text-2xl font-bold text-blue-600">{selectedCount + customSkillsCount}</div>
-               <div className="text-sm text-gray-600">推荐技能</div>
-             </div>
-             <div className="text-center">
-               <div className="text-2xl font-bold text-purple-600">{skillsSummary ? '1' : '0'}</div>
-               <div className="text-sm text-gray-600">AI技能总结</div>
-             </div>
-             <div className="text-center">
-               <div className="text-2xl font-bold text-green-600">
-                 {recommendedSkills.filter(s => s.priority === 'high' && s.selected).length}
-               </div>
-               <div className="text-sm text-gray-600">高优先级技能</div>
-             </div>
-             <div className="text-center">
-               <div className="text-2xl font-bold text-orange-600">
-                 {recommendedSkills.filter(s => s.trend === 'rising' && s.selected).length}
-               </div>
-               <div className="text-sm text-gray-600">上升趋势技能</div>
-             </div>
-           </div>
-           <p className="text-blue-800 text-sm">
-             🎉 AI已完成深度分析，为您推荐了最符合市场趋势的技能组合！每个技能都包含详细的能力描述，让HR一眼就能看懂您的实际水平。
-           </p>
-         </div>
-       )}
+        {(selectedCount > 0 || customSkillsCount > 0) && (
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">🎯 AI分析完成情况</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{selectedCount + customSkillsCount}</div>
+                <div className="text-sm text-gray-600">推荐技能</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{skillsSummary ? '1' : '0'}</div>
+                <div className="text-sm text-gray-600">AI技能总结</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {recommendedSkills.filter(s => s.priority === 'high' && s.selected).length}
+                </div>
+                <div className="text-sm text-gray-600">高优先级技能</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {recommendedSkills.filter(s => s.trend === 'rising' && s.selected).length}
+                </div>
+                <div className="text-sm text-gray-600">上升趋势技能</div>
+              </div>
+            </div>
+            <p className="text-blue-800 text-sm">
+              🎉 AI已完成深度分析，为您推荐了最符合市场趋势的技能组合！每个技能都包含详细的能力描述，让HR一眼就能看懂您的实际水平。
+            </p>
+          </div>
+        )}
 
-       <div className="flex justify-between items-center mt-8">
-         <button
-           onClick={onBack}
-           className="flex items-center space-x-2 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-         >
-           <ArrowLeft className="h-4 w-4" />
-           <span>返回上一步</span>
-         </button>
+        <div className="flex justify-between items-center mt-8">
+          <button
+            onClick={onBack}
+            className="flex items-center space-x-2 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>返回上一步</span>
+          </button>
 
-         <button
-           onClick={handleComplete}
-           disabled={selectedCount + customSkillsCount === 0}
-           className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-             selectedCount + customSkillsCount > 0
-               ? 'bg-blue-600 text-white hover:bg-blue-700'
-               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-           }`}
-         >
-           <span>完成并生成简历</span>
-           <ArrowRight className="h-4 w-4" />
-         </button>
-       </div>
-     </main>
-   </div>
- )
+          <button
+            onClick={handleComplete}
+            disabled={selectedCount + customSkillsCount === 0}
+            className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
+              selectedCount + customSkillsCount > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <span>完成并生成简历</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </main>
+    </div>
+  )
 }
 
 export default EnhancedAISkillRecommendation

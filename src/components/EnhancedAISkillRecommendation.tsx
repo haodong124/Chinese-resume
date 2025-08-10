@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, Sparkles, Plus, Edit3, Trash2, RefreshCw, CheckCircle, Circle, Lightbulb, AlertCircle, FileText, Award, Wand2, TrendingUp, Target, Brain, Zap, Save, X } from 'lucide-react'
+import { deduplicateSkills, isSkillDuplicate, mergeAndDeduplicateSkills, clearSkillStorage, generateSessionId } from '../utils/skillUtils'
 
 interface PersonalInfo {
   name: string
@@ -98,6 +99,7 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
   const [aiError, setAiError] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isGeneratingDescription, setIsGeneratingDescription] = useState<string | null>(null)
+  const [isClearing, setIsClearing] = useState(false)
   
   const [skillsSummary, setSkillsSummary] = useState('')
   const [achievements, setAchievements] = useState<Achievement[]>([])
@@ -105,6 +107,10 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
   const [showAnalysisTab, setShowAnalysisTab] = useState('skills')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  
+  // 新增状态：会话管理
+  const [currentSessionId, setCurrentSessionId] = useState<string>('')
+  const [skillHistory, setSkillHistory] = useState<AISkillRecommendation[]>([])
   
   const [newSkill, setNewSkill] = useState({
     name: '',
@@ -223,10 +229,19 @@ ${userBackground}
     }
   }
 
-  // 生成AI技能推荐（带描述）
-  const generateAISkillRecommendations = async () => {
+  // 修复后的AI技能推荐生成函数
+  const generateAISkillRecommendations = async (clearHistory: boolean = false) => {
     try {
       setAiError(null)
+      
+      // 如果需要清空历史，先清空所有相关状态和存储
+      if (clearHistory) {
+        setRecommendedSkills([])
+        setSkillHistory([])
+        clearSkillStorage()
+        setCurrentSessionId(generateSessionId())
+        console.log('清空历史，开始新的推荐会话')
+      }
       
       const educationText = education.map(edu => 
         `${edu.degree} ${edu.major} (${edu.school})`
@@ -235,6 +250,12 @@ ${userBackground}
       const experienceText = experience.map(exp => 
         `${exp.position} @ ${exp.company}: ${exp.description}`
       ).join('\n')
+
+      // 获取当前已有的所有技能（用于避免重复推荐）
+      const existingSkillsList = [
+        ...recommendedSkills.map(s => `${s.name}(${s.category})`),
+        ...customSkills.map(s => `${s.name}(${s.category})`)
+      ].join(', ')
 
       const prompt = `
 作为世界顶级的职业规划师和技能分析专家，请基于以下信息为求职者推荐技能：
@@ -251,7 +272,12 @@ ${educationText}
 工作经历：
 ${experienceText}
 
-请从以下维度全面分析并推荐12-15项技能：
+${existingSkillsList ? `**重要：避免重复推荐**
+当前已有技能（请避免重复推荐这些技能）：
+${existingSkillsList}
+` : ''}
+
+请从以下维度全面分析并推荐12-15项**全新且不重复**的技能：
 
 1. **核心专业技能** - 该领域必备的专业能力
 2. **软件工具技能** - 行业相关的专业软件和工具
@@ -277,6 +303,7 @@ ${experienceText}
 - 包含具体的软件名称
 - 体现现代办公数字化需求
 - level只能是: understand(了解), proficient(熟练), expert(精通)
+- **确保所有推荐的技能都是新的，与已有技能完全不重复**
 
 返回JSON格式：
 [
@@ -295,17 +322,94 @@ ${experienceText}
 ]
 `
 
-      const systemMessage = `你是世界顶级的HR专家和职业规划师，拥有20年的行业经验。你深度了解各行各业的技能需求变化，特别是AI和数字化转型对技能要求的影响。你需要为求职者提供最前沿、最实用的技能推荐建议。`
+      const systemMessage = `你是世界顶级的HR专家和职业规划师，拥有20年的行业经验。你深度了解各行各业的技能需求变化，特别是AI和数字化转型对技能要求的影响。你需要为求职者提供最前沿、最实用的技能推荐建议，同时严格避免推荐重复的技能。`
       
       const content = await callAIService(prompt, systemMessage)
-      const skills = parseAISkillRecommendations(content)
-      setRecommendedSkills(skills)
-      console.log('AI技能推荐成功:', skills)
+      const newSkills = parseAISkillRecommendations(content)
+      
+      // 关键修复：严格去重处理
+      const allExistingSkills = [...recommendedSkills, ...customSkills]
+      const deduplicatedNewSkills = newSkills.filter(newSkill => 
+        !isSkillDuplicate(newSkill, allExistingSkills)
+      )
+      
+      console.log(`AI返回${newSkills.length}个技能，去重后${deduplicatedNewSkills.length}个技能`)
+      
+      // 根据是否清空历史来决定如何设置技能
+      if (clearHistory) {
+        // 清空重新生成：直接设置新技能
+        setRecommendedSkills(deduplicateSkills(deduplicatedNewSkills))
+        setSkillHistory(deduplicatedNewSkills)
+      } else {
+        // 增量生成：合并现有技能和新技能，然后去重
+        const mergedSkills = mergeAndDeduplicateSkills([recommendedSkills, deduplicatedNewSkills])
+        setRecommendedSkills(mergedSkills)
+        setSkillHistory(prev => deduplicateSkills([...prev, ...deduplicatedNewSkills]))
+      }
+      
+      // 保存到本地存储
+      localStorage.setItem('ai-recommended-skills', JSON.stringify(deduplicatedNewSkills))
+      localStorage.setItem('skill-session-id', currentSessionId)
+      
+      console.log('AI技能推荐成功，当前推荐技能总数:', deduplicatedNewSkills.length)
     } catch (error) {
       console.error('AI技能推荐失败:', error)
       setAiError('AI推荐服务暂时不可用，使用智能备选推荐')
       const fallbackSkills = getIntelligentFallbackSkills()
-      setRecommendedSkills(fallbackSkills)
+      
+      // 备选技能也要去重
+      const allExistingSkills = [...recommendedSkills, ...customSkills]
+      const deduplicatedFallback = fallbackSkills.filter(skill => 
+        !isSkillDuplicate(skill, allExistingSkills)
+      )
+      
+      if (clearHistory) {
+        setRecommendedSkills(deduplicatedFallback)
+      } else {
+        setRecommendedSkills(prev => mergeAndDeduplicateSkills([prev, deduplicatedFallback]))
+      }
+    }
+  }
+
+  // 一键清空所有AI推荐技能
+  const clearAllRecommendedSkills = () => {
+    if (window.confirm('确定要清空所有AI推荐的技能吗？这不会影响您手动添加的自定义技能。')) {
+      setIsClearing(true)
+      
+      // 清空推荐技能相关状态
+      setRecommendedSkills([])
+      setSkillHistory([])
+      
+      // 清空编辑状态
+      setEditingSkill(null)
+      setEditingSkillData(null)
+      
+      // 清空本地存储
+      clearSkillStorage()
+      
+      // 生成新的会话ID
+      setCurrentSessionId(generateSessionId())
+      
+      setTimeout(() => {
+        setIsClearing(false)
+      }, 500)
+      
+      console.log('已清空所有AI推荐技能')
+    }
+  }
+
+  // 清空已选择的AI推荐技能
+  const clearSelectedRecommendedSkills = () => {
+    const selectedCount = recommendedSkills.filter(skill => skill.selected).length
+    if (selectedCount === 0) {
+      alert('没有已选择的技能需要清空')
+      return
+    }
+    
+    if (window.confirm(`确定要清空 ${selectedCount} 个已选择的AI推荐技能吗？`)) {
+      const unselectedSkills = recommendedSkills.filter(skill => !skill.selected)
+      setRecommendedSkills(unselectedSkills)
+      console.log(`已清空${selectedCount}个已选择的技能`)
     }
   }
 
@@ -562,6 +666,37 @@ ${experienceInfo}
 3. 结合工作经验中的实际应用场景
 4. 突出技能的现代化和数字化特点
 5. 体现AI时代的适应能力和学习能力
+6. 如果有工作成就，要在总结中体现具体的
+// 继续 generateSkillsSummary 函数
+      const prompt = `
+请为以下求职者撰写一个专业的技能总结，要求结合实际工作经验和量化成就：
+
+个人信息：
+- 姓名：${personalInfo.name}
+- 目标职位：${personalInfo.title || '未指定'}
+- 教育背景：${education.map(edu => `${edu.degree} ${edu.major}`).join('、')}
+
+技能信息：
+- 主要技能（${quantifiedData.totalSkills}项）：${skillNames}
+- 技能领域：${categories}
+- 技术技能：${quantifiedData.techSkills}项，办公技能：${quantifiedData.officeSkills}项
+
+技能能力描述：
+${skillCapabilities}
+
+工作经历（${quantifiedData.totalExperience}段，包含${quantifiedData.internshipCount}段实习）：
+${experienceInfo}
+
+量化数据：
+- 总工作成就：${quantifiedData.totalAchievements}项
+- 技能覆盖度：涵盖${categories}等${[...new Set(selectedSkills.map(s => s.category))].length}个专业领域
+
+要求：
+1. 200-250字的专业技能总结
+2. **必须包含量化数据**：技能数量、工作经历、具体成就等
+3. 结合工作经验中的实际应用场景
+4. 突出技能的现代化和数字化特点
+5. 体现AI时代的适应能力和学习能力
 6. 如果有工作成就，要在总结中体现具体的价值贡献
 7. 展现技能组合的协同效应
 8. 语言简洁专业，适合简历使用
@@ -661,11 +796,13 @@ ${experienceInfo}
     return summary
   }
 
+  // 组件初始化
   useEffect(() => {
     setIsLoading(true)
+    setCurrentSessionId(generateSessionId())
     setTimeout(async () => {
       await Promise.all([
-        generateAISkillRecommendations(),
+        generateAISkillRecommendations(true), // 初始化时清空历史
         generateIndustryAnalysis()
       ])
       setIsLoading(false)
@@ -723,33 +860,53 @@ ${experienceInfo}
     setEditingSkillData(null)
   }
 
+  // 去重后的自定义技能添加
   const handleAddCustomSkill = async () => {
     if (newSkill.name.trim()) {
+      // 检查是否与现有技能重复
+      const allExistingSkills = [
+        ...recommendedSkills.map(s => ({ name: s.name, category: s.category })),
+        ...customSkills.map(s => ({ name: s.name, category: s.category }))
+      ]
+      
+      const skillToCheck = { 
+        name: newSkill.name.trim(), 
+        category: (newSkill.category || '自定义').trim() 
+      }
+      
+      if (isSkillDuplicate(skillToCheck, allExistingSkills)) {
+        alert(`技能 "${newSkill.name.trim()}" 在分类 "${skillToCheck.category}" 中已存在，请避免重复添加。`)
+        return
+      }
+      
       let description = newSkill.description
       
       // 如果没有描述，AI自动生成
       if (!description.trim()) {
         try {
           description = await generateSkillDescription(
-            newSkill.name, 
+            newSkill.name.trim(), 
             newSkill.level, 
-            newSkill.category || '自定义'
+            skillToCheck.category
           )
         } catch (error) {
-          description = `能够运用${newSkill.name}技能解决实际工作问题`
+          description = `能够运用${newSkill.name.trim()}技能解决实际工作问题`
         }
       }
       
       const customSkill: Skill = {
         id: Date.now().toString(),
-        name: newSkill.name,
+        name: newSkill.name.trim(),
         level: newSkill.level,
-        category: newSkill.category || '自定义',
+        category: skillToCheck.category,
         description: description
       }
-      setCustomSkills(prev => [...(prev || []), customSkill])
+      
+      setCustomSkills(prev => deduplicateSkills([...(prev || []), customSkill]))
       setNewSkill({ name: '', level: 'proficient', category: '', description: '' })
       setShowCustomForm(false)
+      
+      console.log('添加自定义技能:', customSkill.name)
     }
   }
 
@@ -757,9 +914,9 @@ ${experienceInfo}
     setCustomSkills(prev => (prev || []).filter(skill => skill.id !== id))
   }
 
-  const regenerateRecommendations = async () => {
+  const regenerateRecommendations = async (clearExisting: boolean = true) => {
     setIsRegenerating(true)
-    await generateAISkillRecommendations()
+    await generateAISkillRecommendations(clearExisting) // 传入清空标志
     setIsRegenerating(false)
   }
 
@@ -900,18 +1057,64 @@ ${experienceInfo}
                     基于您的背景和2024-2025年市场趋势，AI为您精选了以下技能，点击编辑可自定义
                   </p>
                 </div>
-                <button
-                  onClick={regenerateRecommendations}
-                  disabled={isRegenerating}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                    isRegenerating
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
-                >
-                  <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-                  <span>{isRegenerating ? 'AI重新分析中...' : '重新推荐'}</span>
-                </button>
+                
+                <div className="flex space-x-3">
+                  {/* 一键清空按钮 */}
+                  <button
+                    onClick={clearAllRecommendedSkills}
+                    disabled={isClearing || recommendedSkills.length === 0}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      isClearing || recommendedSkills.length === 0
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                    }`}
+                  >
+                    <Trash2 className={`h-4 w-4 ${isClearing ? 'animate-pulse' : ''}`} />
+                    <span>{isClearing ? '清空中...' : '清空推荐'}</span>
+                  </button>
+                  
+                  {/* 清空已选择 */}
+                  <button
+                    onClick={clearSelectedRecommendedSkills}
+                    disabled={recommendedSkills.filter(s => s.selected).length === 0}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      recommendedSkills.filter(s => s.selected).length === 0
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    }`}
+                  >
+                    <X className="h-4 w-4" />
+                    <span>清空已选</span>
+                  </button>
+                  
+                  {/* 重新推荐按钮 */}
+                  <button
+                    onClick={() => regenerateRecommendations(true)}
+                    disabled={isRegenerating}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      isRegenerating
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    <span>{isRegenerating ? 'AI重新分析中...' : '重新推荐'}</span>
+                  </button>
+                  
+                  {/* 增量推荐按钮 */}
+                  <button
+                    onClick={() => regenerateRecommendations(false)}
+                    disabled={isRegenerating}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      isRegenerating
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    <Plus className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    <span>补充推荐</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1292,7 +1495,7 @@ ${experienceInfo}
 
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                    <Target className="h-6w-6 text-orange-600 mr-2" />
+                    <Target className="h-6 w-6 text-orange-600 mr-2" />
                     远程办公的技能要求变化
                   </h2>
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
@@ -1311,7 +1514,7 @@ ${experienceInfo}
 
         {showAnalysisTab === 'summary' && (
           <div className="space-y-8">
-            {/* 新增：数据分析卡片 */}
+            {/* 数据分析卡片 */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                 <TrendingUp className="h-6 w-6 text-blue-600 mr-2" />
@@ -1411,7 +1614,7 @@ ${experienceInfo}
               </div>
             </div>
 
-            {/* 原有的技能总结区域 */}
+            {/* 技能总结区域 */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="flex justify-between items-center mb-6">
                 <div>

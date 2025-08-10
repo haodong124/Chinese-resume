@@ -95,18 +95,14 @@ export interface ResumeData {
   industryAnalysis?: IndustryAnalysis
 }
 
-export type TemplateType = 
-  | 'modern' 
-  | 'classic' 
-  | 'azurill' 
-  | 'bronzor' 
-  | 'europass'
+// 统一使用标准模板
+export type TemplateType = 'standard'
 
 type Step = 'landing' | 'collection' | 'skills' | 'template' | 'resume'
 
 function App() {
   const [currentStep, setCurrentStep] = useState<Step>('landing')
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('modern')
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('standard')
   
   // 初始化简历数据
   const [resumeData, setResumeData] = useState<ResumeData>({
@@ -191,9 +187,9 @@ function App() {
     goToStep('template')
   }
 
-  // 处理模板选择
+  // 处理模板选择 - 直接跳到简历生成
   const handleTemplateSelect = (template: TemplateType) => {
-    setSelectedTemplate(template)
+    setSelectedTemplate('standard') // 强制使用标准模板
     goToStep('resume')
   }
 

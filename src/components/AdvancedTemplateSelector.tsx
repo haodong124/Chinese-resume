@@ -1,7 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 
-// 从 App.tsx 导入的类型定义
 export interface PersonalInfo {
   name: string
   email: string
@@ -87,14 +86,8 @@ export interface ResumeData {
   industryAnalysis?: IndustryAnalysis
 }
 
-export type TemplateType = 
-  | 'modern' 
-  | 'classic' 
-  | 'azurill' 
-  | 'bronzor' 
-  | 'europass'
+export type TemplateType = 'standard'
 
-// 修正后的Props接口，与App.tsx中的调用匹配
 interface AdvancedTemplateSelectorProps {
   resumeData: ResumeData
   onSelectTemplate: (template: TemplateType) => void
@@ -106,94 +99,23 @@ const AdvancedTemplateSelector: React.FC<AdvancedTemplateSelectorProps> = ({
   onSelectTemplate,
   onBack
 }) => {
-  const templates = [
-    {
-      id: 'europass' as TemplateType,
-      name: 'Europass',
-      description: '欧洲标准简历格式',
-      color: 'blue',
-      icon: '🇪🇺',
-      features: ['标准格式', '专业认证', '国际通用']
-    },
-    {
-      id: 'azurill' as TemplateType,
-      name: 'Azurill',
-      description: '蓝色时间线设计',
-      color: 'blue',
-      icon: '🔵',
-      features: ['时间线布局', '双栏设计', '专业配色']
-    },
-    {
-      id: 'bronzor' as TemplateType,
-      name: 'Bronzor',
-      description: '绿色网格布局',
-      color: 'green',
-      icon: '🟢',
-      features: ['网格系统', '简洁现代', '信息密集']
-    },
-    {
-      id: 'modern' as TemplateType,
-      name: 'Modern',
-      description: '现代简约设计',
-      color: 'blue',
-      icon: '🎨',
-      features: ['现代设计', '简约风格', '可读性强']
-    },
-    {
-      id: 'classic' as TemplateType,
-      name: 'Classic',
-      description: '经典传统风格',
-      color: 'gray',
-      icon: '📋',
-      features: ['传统布局', '正式风格', '稳重大方']
-    }
-  ];
-
-  const getColorClasses = (color: string) => {
-    const baseClasses = 'border-2 rounded-lg transition-all duration-200 hover:shadow-md hover:border-gray-400';
-    
-    switch (color) {
-      case 'blue':
-        return `${baseClasses} border-blue-200 hover:border-blue-400`;
-      case 'green':
-        return `${baseClasses} border-green-200 hover:border-green-400`;
-      case 'gray':
-        return `${baseClasses} border-gray-200 hover:border-gray-400`;
-      default:
-        return `${baseClasses} border-gray-200 hover:border-gray-400`;
-    }
-  };
-
-  const getHeaderColorClasses = (color: string) => {
-    switch (color) {
-      case 'blue':
-        return 'text-blue-600';
-      case 'green':
-        return 'text-green-600';
-      case 'gray':
-        return 'text-gray-600';
-      default:
-        return 'text-blue-600';
-    }
-  };
-
-  // 修正后的事件处理函数
-  const handleTemplateClick = (templateId: TemplateType) => {
-    onSelectTemplate(templateId);
+  // 直接选择标准模板
+  const handleTemplateClick = () => {
+    onSelectTemplate('standard');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                选择简历模板
+                专业简历模板
               </h1>
               <p className="text-gray-600">
-                为您的专业简历选择最合适的设计风格
+                采用国际标准格式，专为现代职场设计
               </p>
             </div>
             <button
@@ -228,65 +150,78 @@ const AdvancedTemplateSelector: React.FC<AdvancedTemplateSelectorProps> = ({
             </div>
           </div>
 
-          {/* 模板提示 */}
-          <div className="text-sm text-gray-600 mb-6">
-            选择专业简历模板，每个模板都经过精心设计，适配不同的职业需求。
-          </div>
-          
-          {/* 模板网格 */}
-          <div className="grid grid-cols-1 gap-6 mb-8">
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                onClick={() => handleTemplateClick(template.id)}
-                className={`p-6 text-left transition-all duration-200 hover:shadow-lg ${getColorClasses(template.color)} bg-white`}
-              >
-                <div className="flex items-start space-x-4">
-                  <div className="text-3xl">{template.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className={`text-xl font-semibold ${getHeaderColorClasses(template.color)}`}>
-                        {template.name}
-                      </h3>
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                        推荐
-                      </span>
-                    </div>
-                    <p className="text-gray-600 mb-3">{template.description}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {template.features.map((feature, index) => (
-                        <span
-                          key={index}
-                          className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full"
-                        >
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
+          {/* 标准模板展示 */}
+          <div className="mb-8">
+            <button
+              onClick={handleTemplateClick}
+              className="w-full p-8 text-left transition-all duration-200 hover:shadow-lg border-2 border-blue-200 hover:border-blue-400 bg-white rounded-lg"
+            >
+              <div className="flex items-start space-x-6">
+                <div className="text-4xl">📋</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <h3 className="text-2xl font-semibold text-blue-600">
+                      标准简历模板
+                    </h3>
+                    <span className="text-xs bg-green-100 text-green-600 px-3 py-1 rounded-full font-medium">
+                      统一使用
+                    </span>
                   </div>
-                  <div className="text-right">
-                    <div className={`w-4 h-4 rounded-full border-2 ${
-                      template.color === 'blue' ? 'border-blue-500' : 
-                      template.color === 'green' ? 'border-green-500' : 'border-gray-500'
-                    }`}></div>
+                  <p className="text-gray-600 mb-4 text-lg">
+                    中文标准简历格式，采用单栏双栏结合布局，最大化利用A4纸张空间，专业美观
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <span className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded-full font-medium">
+                      A4标准尺寸
+                    </span>
+                    <span className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded-full font-medium">
+                      中文专业格式
+                    </span>
+                    <span className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded-full font-medium">
+                      量化成果展示
+                    </span>
+                    <span className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded-full font-medium">
+                      技能详细描述
+                    </span>
+                    <span className="text-sm px-4 py-2 bg-blue-100 text-blue-700 rounded-full font-medium">
+                      混合栏布局
+                    </span>
                   </div>
                 </div>
-              </button>
-            ))}
+                <div className="text-right">
+                  <div className="w-6 h-6 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            </button>
           </div>
 
-          {/* 模板预览提示 */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <div className="text-blue-500 mt-0.5">💡</div>
-              <div className="text-sm text-blue-700">
-                <strong>提示：</strong> 选择模板后将立即进入简历编辑器，您可以在那里预览效果并进行最终调整。每个模板都针对不同行业和职位进行了优化设计。
-              </div>
+          {/* 模板特色说明 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg">
+              <h4 className="text-lg font-semibold text-blue-900 mb-3">🎯 设计特色</h4>
+              <ul className="text-sm text-blue-800 space-y-2">
+                <li>• 单栏双栏结合，信息层次清晰</li>
+                <li>• 技能部分支持详细能力描述</li>
+                <li>• 成就亮点前置，突出个人价值</li>
+                <li>• 中文排版优化，阅读体验佳</li>
+              </ul>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-lg">
+              <h4 className="text-lg font-semibold text-green-900 mb-3">✨ 适用场景</h4>
+              <ul className="text-sm text-green-800 space-y-2">
+                <li>• 适合所有行业和职位级别</li>
+                <li>• 技术岗位技能展示优化</li>
+                <li>• 支持量化成果和具体成就</li>
+                <li>• 完美A4打印和PDF导出</li>
+              </ul>
             </div>
           </div>
 
           {/* 底部导航 */}
-          <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
+          <div className="flex justify-between items-center pt-6 border-t border-gray-200">
             <button
               onClick={onBack}
               className="flex items-center space-x-2 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
@@ -295,9 +230,18 @@ const AdvancedTemplateSelector: React.FC<AdvancedTemplateSelectorProps> = ({
               <span>返回技能推荐</span>
             </button>
 
-            <div className="text-sm text-gray-500">
-              点击任一模板即可开始生成简历
+            <div className="text-center">
+              <div className="text-lg font-semibold text-gray-900 mb-1">点击上方模板开始生成</div>
+              <div className="text-sm text-gray-500">所有用户统一使用此专业格式</div>
             </div>
+
+            <button
+              onClick={handleTemplateClick}
+              className="flex items-center space-x-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <span>使用此模板</span>
+              <ArrowLeft className="h-4 w-4 rotate-180" />
+            </button>
           </div>
         </div>
       </div>

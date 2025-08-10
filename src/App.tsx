@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import PersonalInfoForm from './components/PersonalInfoForm'
-import EducationForm from './components/EducationForm'
-import WorkExperienceForm from './components/WorkExperienceForm'
-import ProjectForm from './components/ProjectForm'
+import LandingPage from './components/LandingPage'
+import InformationCollection from './components/InformationCollection'
 import EnhancedAISkillRecommendation from './components/EnhancedAISkillRecommendation'
 import ResumeEditor from './components/ResumeEditor'
-import TemplateSelector from './components/TemplateSelector'
-import LandingPage from './components/LandingPage'
+import AdvancedTemplateSelector from './components/AdvancedTemplateSelector'
 import { saveToLocalStorage, loadFromLocalStorage } from './utils/storage'
 import { FileText, Save, RefreshCw, Home } from 'lucide-react'
 
@@ -31,15 +28,15 @@ export interface Education {
   gpa?: string
 }
 
-// 更新工作经验接口 - 包含必填和选填字段
-export interface WorkExperience {
+// 工作经验接口
+export interface Experience {
   id: string
   company: string
   position: string
   duration: string
   description: string
-  isInternship?: boolean // 是否为实习
-  achievements?: string[] // 工作成就
+  isInternship?: boolean
+  achievements?: string[]
 }
 
 export interface Project {
@@ -52,14 +49,14 @@ export interface Project {
   link?: string
 }
 
-// 更新技能接口 - 添加具体能力描述
+// 更新技能接口
 export interface Skill {
   id: string
   name: string
-  level: 'familiar' | 'proficient' | 'expert' // 改为：熟悉、熟练、精通
+  level: 'understand' | 'proficient' | 'expert'
   category: string
-  description?: string // 原有描述
-  capabilities?: string[] // 新增：具体能做什么
+  description?: string
+  capabilities?: string[] // 新增：具体能力描述
 }
 
 export interface Certificate {
@@ -89,7 +86,7 @@ export interface IndustryAnalysis {
 export interface ResumeData {
   personalInfo: PersonalInfo
   education: Education[]
-  workExperience: WorkExperience[] // 新增
+  experience: Experience[] // 工作经验
   projects: Project[]
   skills: Skill[]
   certificates: Certificate[]
@@ -104,18 +101,8 @@ export type TemplateType =
   | 'azurill' 
   | 'bronzor' 
   | 'europass'
-  | 'creative-duotone'
-  | 'europass-lite'
-  | 'flat-infographic'
-  | 'fresh-green'
-  | 'magazine-style'
-  | 'minimal-business'
-  | 'modern-card'
-  | 'tech-blue'
-  | 'academic-cv'
-  | 'black-gold'
 
-type Step = 'landing' | 'personal' | 'education' | 'work' | 'projects' | 'skills' | 'template' | 'resume'
+type Step = 'landing' | 'collection' | 'skills' | 'template' | 'resume'
 
 function App() {
   const [currentStep, setCurrentStep] = useState<Step>('landing')
@@ -133,7 +120,7 @@ function App() {
       website: ''
     },
     education: [],
-    workExperience: [], // 新增
+    experience: [], // 工作经验
     projects: [],
     skills: [],
     certificates: [],
@@ -146,10 +133,9 @@ function App() {
   useEffect(() => {
     const savedData = loadFromLocalStorage('resumeData')
     if (savedData) {
-      // 确保旧数据兼容新结构
       setResumeData({
         ...savedData,
-        workExperience: savedData.workExperience || [],
+        experience: savedData.experience || [],
         personalInfo: {
           ...savedData.personalInfo,
           website: savedData.personalInfo?.website || ''
@@ -171,38 +157,20 @@ function App() {
     window.scrollTo(0, 0)
   }
 
-  // 更新简历数据的通用函数
-  const updateResumeData = <K extends keyof ResumeData>(
-    key: K,
-    value: ResumeData[K]
-  ) => {
+  // 处理信息收集完成（包括个人信息、教育、工作经验、项目）
+  const handleCollectionComplete = (data: {
+    personalInfo: PersonalInfo
+    education: Education[]
+    experience: Experience[]
+    projects: Project[]
+  }) => {
     setResumeData(prev => ({
       ...prev,
-      [key]: value
+      personalInfo: data.personalInfo,
+      education: data.education,
+      experience: data.experience,
+      projects: data.projects
     }))
-  }
-
-  // 处理个人信息提交
-  const handlePersonalInfoComplete = (data: PersonalInfo) => {
-    updateResumeData('personalInfo', data)
-    goToStep('education')
-  }
-
-  // 处理教育信息提交
-  const handleEducationComplete = (data: Education[]) => {
-    updateResumeData('education', data)
-    goToStep('work')
-  }
-
-  // 处理工作经验提交
-  const handleWorkExperienceComplete = (data: WorkExperience[]) => {
-    updateResumeData('workExperience', data)
-    goToStep('projects')
-  }
-
-  // 处理项目经验提交
-  const handleProjectComplete = (data: Project[]) => {
-    updateResumeData('projects', data)
     goToStep('skills')
   }
 
@@ -243,7 +211,7 @@ function App() {
           website: ''
         },
         education: [],
-        workExperience: [],
+        experience: [],
         projects: [],
         skills: [],
         certificates: [],
@@ -261,42 +229,20 @@ function App() {
     switch (currentStep) {
       case 'landing':
         return (
-          <LandingPage onStart={() => goToStep('personal')} />
+          <LandingPage onStart={() => goToStep('collection')} />
         )
       
-      case 'personal':
+      case 'collection':
         return (
-          <PersonalInfoForm
-            initialData={resumeData.personalInfo}
-            onComplete={handlePersonalInfoComplete}
+          <InformationCollection
+            initialData={{
+              personalInfo: resumeData.personalInfo,
+              education: resumeData.education,
+              experience: resumeData.experience,
+              projects: resumeData.projects
+            }}
+            onComplete={handleCollectionComplete}
             onBack={() => goToStep('landing')}
-          />
-        )
-      
-      case 'education':
-        return (
-          <EducationForm
-            initialData={resumeData.education}
-            onComplete={handleEducationComplete}
-            onBack={() => goToStep('personal')}
-          />
-        )
-      
-      case 'work':
-        return (
-          <WorkExperienceForm
-            initialData={resumeData.workExperience}
-            onComplete={handleWorkExperienceComplete}
-            onBack={() => goToStep('education')}
-          />
-        )
-      
-      case 'projects':
-        return (
-          <ProjectForm
-            initialData={resumeData.projects}
-            onComplete={handleProjectComplete}
-            onBack={() => goToStep('work')}
           />
         )
       
@@ -305,16 +251,16 @@ function App() {
           <EnhancedAISkillRecommendation
             personalInfo={resumeData.personalInfo}
             education={resumeData.education}
-            experience={resumeData.workExperience}
+            experience={resumeData.experience}
             initialSkills={resumeData.skills}
             onComplete={handleSkillsComplete}
-            onBack={() => goToStep('projects')}
+            onBack={() => goToStep('collection')}
           />
         )
       
       case 'template':
         return (
-          <TemplateSelector
+          <AdvancedTemplateSelector
             resumeData={resumeData}
             onSelectTemplate={handleTemplateSelect}
             onBack={() => goToStep('skills')}
@@ -340,10 +286,7 @@ function App() {
   // 步骤指示器组件
   const StepIndicator = () => {
     const steps = [
-      { key: 'personal', label: '个人信息' },
-      { key: 'education', label: '教育背景' },
-      { key: 'work', label: '工作经验' },
-      { key: 'projects', label: '项目经历' },
+      { key: 'collection', label: '信息收集' },
       { key: 'skills', label: '技能推荐' },
       { key: 'template', label: '选择模板' },
       { key: 'resume', label: '生成简历' }

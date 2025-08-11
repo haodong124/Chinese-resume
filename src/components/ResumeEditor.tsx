@@ -5,6 +5,8 @@ import jsPDF from 'jspdf'
 
 // 导入标准模板
 import StandardTemplate from './templates/StandardTemplate'
+// 导入评价弹窗组件
+import FeedbackModal from './FeedbackModal'
 
 export type TemplateType = 'standard'
 
@@ -74,6 +76,13 @@ export interface Achievement {
   date?: string
 }
 
+export interface Language {
+  id: string
+  name: string
+  level: string
+  description?: string
+}
+
 export interface IndustryAnalysis {
   trends: string[]
   emergingSkills: string[]
@@ -91,6 +100,7 @@ export interface ResumeData {
   certificates: Certificate[]
   skillsSummary?: string
   achievements: Achievement[]
+  languages: Language[]
   industryAnalysis?: IndustryAnalysis
 }
 
@@ -109,6 +119,11 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   onTemplateChange,
   onBack
 }) => {
+  // 评价弹窗状态
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+
   // 数据适配器 - 确保数据格式兼容模板
   const adaptDataForTemplate = (data: ResumeData): ResumeData => {
     const adaptedExperience = data.experience.map(exp => ({
@@ -132,6 +147,12 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     return <StandardTemplate resumeData={adaptedData} />
   }
 
+  // 处理评价提交成功
+  const handleFeedbackSubmitted = () => {
+    setFeedbackSubmitted(true)
+    setShowFeedbackModal(false)
+  }
+
   const handleExportPDF = async () => {
     const element = document.querySelector('.resume-preview') as HTMLElement
     if (!element) {
@@ -140,6 +161,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
 
     try {
+      setIsExporting(true)
+      
       const loadingToast = document.createElement('div')
       loadingToast.innerHTML = '正在生成高质量PDF，请稍候...'
       loadingToast.style.cssText = `
@@ -215,6 +238,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       document.body.appendChild(successToast)
       setTimeout(() => document.body.removeChild(successToast), 3000)
       
+      // PDF导出成功后，延迟3秒弹出评价表单
+      setTimeout(() => {
+        if (!feedbackSubmitted) {
+          setShowFeedbackModal(true)
+        }
+      }, 3000)
+      
     } catch (error) {
       console.error('PDF导出失败:', error)
       
@@ -232,6 +262,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       `
       document.body.appendChild(errorToast)
       setTimeout(() => document.body.removeChild(errorToast), 3000)
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -272,10 +304,23 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               
               <button
                 onClick={handleExportPDF}
-                className="flex items-center space-x-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                disabled={isExporting}
+                className={`flex items-center space-x-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isExporting
+                    ? 'bg-gray-400 cursor-not-allowed text-white'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                <Download className="h-4 w-4" />
-                <span>导出PDF</span>
+                <Download className={`h-4 w-4 ${isExporting ? 'animate-spin' : ''}`} />
+                <span>{isExporting ? '导出中...' : '导出PDF'}</span>
+              </button>
+              
+              {/* 手动触发评价按钮（开发测试用） */}
+              <button
+                onClick={() => setShowFeedbackModal(true)}
+                className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                分享反馈
               </button>
             </div>
           </div>
@@ -289,7 +334,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             {renderTemplate()}
           </div>
         </div>
+        
+        {/* 使用提示 */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">简历已生成完成！</p>
+              <p>您可以点击"导出PDF"下载简历文件，或使用打印功能。导出完成后，我们会邀请您分享使用体验，帮助我们改进产品。</p>
+            </div>
+          </div>
+        </div>
       </main>
+
+      {/* 评价弹窗 */}
+      <FeedbackModal 
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmitted={handleFeedbackSubmitted}
+      />
     </div>
   )
 }

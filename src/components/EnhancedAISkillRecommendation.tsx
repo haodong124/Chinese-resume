@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Sparkles, Plus, Edit3, Trash2, RefreshCw, CheckCircle, Circle, Lightbulb, AlertCircle, FileText, Award, Wand2, TrendingUp, Target, Brain, Zap, Save, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Sparkles, Plus, Edit3, Trash2, RefreshCw, CheckCircle, Circle, Lightbulb, AlertCircle, FileText, Award, Wand2, TrendingUp, Target, Brain, Zap, Save, X, Globe } from 'lucide-react'
 import { deduplicateSkills, isSkillDuplicate, mergeAndDeduplicateSkills, clearSkillStorage, generateSessionId } from '../utils/skillUtils'
 
 interface PersonalInfo {
@@ -58,6 +58,14 @@ interface Achievement {
   description: string
   type: 'education' | 'work' | 'project' | 'other'
   date?: string
+  quantifiedImpact?: string
+}
+
+interface Language {
+  id: string
+  name: string
+  proficiency: 'native' | 'fluent' | 'intermediate' | 'basic'
+  certificate?: string
 }
 
 interface IndustryAnalysis {
@@ -77,6 +85,7 @@ interface EnhancedAISkillRecommendationProps {
     skills: Skill[]
     skillsSummary: string
     achievements: Achievement[]
+    languages: Language[]
     industryAnalysis: IndustryAnalysis
   }) => void
   onBack: () => void
@@ -103,14 +112,24 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
   
   const [skillsSummary, setSkillsSummary] = useState('')
   const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [languages, setLanguages] = useState<Language[]>([])
   const [industryAnalysis, setIndustryAnalysis] = useState<IndustryAnalysis | null>(null)
   const [showAnalysisTab, setShowAnalysisTab] = useState('skills')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [isGeneratingAchievements, setIsGeneratingAchievements] = useState(false)
   
   // 新增状态：会话管理
   const [currentSessionId, setCurrentSessionId] = useState<string>('')
   const [skillHistory, setSkillHistory] = useState<AISkillRecommendation[]>([])
+  
+  // 语言表单状态
+  const [showLanguageForm, setShowLanguageForm] = useState(false)
+  const [newLanguage, setNewLanguage] = useState({
+    name: '',
+    proficiency: 'intermediate' as const,
+    certificate: ''
+  })
   
   const [newSkill, setNewSkill] = useState({
     name: '',
@@ -129,6 +148,20 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
     understand: 'bg-blue-100 text-blue-800',
     proficient: 'bg-green-100 text-green-800',
     expert: 'bg-purple-100 text-purple-800'
+  }
+
+  const proficiencyLabels = {
+    native: '母语',
+    fluent: '流利',
+    intermediate: '中级',
+    basic: '初级'
+  }
+
+  const proficiencyColors = {
+    native: 'bg-green-100 text-green-800',
+    fluent: 'bg-blue-100 text-blue-800',
+    intermediate: 'bg-yellow-100 text-yellow-800',
+    basic: 'bg-gray-100 text-gray-800'
   }
 
   const priorityColors = {
@@ -173,6 +206,124 @@ const EnhancedAISkillRecommendation: React.FC<EnhancedAISkillRecommendationProps
       return data.content || ''
     } catch (error) {
       console.error('AI调用失败:', error)
+      throw error
+    }
+  }
+
+  // 生成量化成就
+  const generateAchievements = async () => {
+    setIsGeneratingAchievements(true)
+    try {
+      const experienceInfo = experience.map(exp => {
+        let expText = `${exp.position} @ ${exp.company} (${exp.duration})`
+        if (exp.isInternship) {
+          expText += ' [实习]'
+        }
+        expText += `\n描述：${exp.description}`
+        
+        if (exp.achievements && exp.achievements.length > 0) {
+          expText += `\n已有成就：${exp.achievements.join('；')}`
+        }
+        return expText
+      }).join('\n\n')
+
+      const prompt = `
+基于以下工作经历信息，为求职者生成量化的职业成就：
+
+个人信息：
+- 姓名：${personalInfo.name}
+- 目标职位：${personalInfo.title || '未指定'}
+- 教育背景：${education.map(edu => `${edu.degree} ${edu.major}`).join('、')}
+
+工作经历详情：
+${experienceInfo}
+
+要求生成5-8个量化成就，每个成就必须包含：
+1. **具体的数字/百分比/时间等量化指标**
+2. **明确的业务价值或影响**
+3. **简洁有力的表述（20-40字）**
+
+成就类型应涵盖：
+- 业绩提升（销售额、效率、质量等）
+- 流程优化（时间节省、成本降低等）
+- 团队领导（团队规模、项目管理等）
+- 技术创新（系统改进、自动化等）
+- 客户服务（满意度、问题解决等）
+
+返回JSON格式：
+[
+  {
+    "title": "业绩提升20%",
+    "description": "通过优化销售流程和数据分析，在6个月内将团队业绩提升20%，超额完成季度目标",
+    "type": "work",
+    "quantifiedImpact": "提升20%业绩，节省30%时间"
+  }
+]
+
+注意：
+- 如果工作经历较少或信息不足，基于教育背景和目标职位推测合理的成就
+- 所有成就都必须包含具体数字
+- 避免夸大，保持真实可信
+- 突出与目标职位相关的能力`
+
+      const systemMessage = '你是资深的简历写作专家，擅长将工作经历转化为量化的职业成就，让HR能够直观看到候选人的价值贡献。'
+      
+      const content = await callAIService(prompt, systemMessage)
+      const newAchievements = parseAchievements(content)
+      setAchievements(newAchievements)
+    } catch (error) {
+      console.error('成就生成失败:', error)
+      // 生成备选成就
+      const fallbackAchievements: Achievement[] = [
+        {
+          id: '1',
+          title: '效率提升',
+          description: '通过流程优化和工具应用，将工作效率提升25%',
+          type: 'work',
+          quantifiedImpact: '效率提升25%'
+        },
+        {
+          id: '2',
+          title: '项目成功',
+          description: '成功完成3个重要项目，按时交付率达到100%',
+          type: 'work',
+          quantifiedImpact: '100%按时交付'
+        }
+      ]
+      setAchievements(fallbackAchievements)
+    } finally {
+      setIsGeneratingAchievements(false)
+    }
+  }
+
+  // 解析AI返回的成就
+  const parseAchievements = (content: string): Achievement[] => {
+    try {
+      let jsonString = content.trim()
+      const jsonMatch = content.match(/\[[\s\S]*\]/)
+      if (jsonMatch) {
+        jsonString = jsonMatch[0]
+      }
+      jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+      
+      const achievements = JSON.parse(jsonString)
+      
+      if (!Array.isArray(achievements)) {
+        throw new Error('返回的不是数组格式')
+      }
+
+      return achievements.map((achievement: any, index: number) => ({
+        id: Date.now().toString() + index,
+        title: achievement.title || `成就${index + 1}`,
+        description: achievement.description || '重要的职业成就',
+        type: ['education', 'work', 'project', 'other'].includes(achievement.type) 
+          ? achievement.type 
+          : 'work',
+        quantifiedImpact: achievement.quantifiedImpact || '显著影响'
+      })).slice(0, 8)
+      
+    } catch (error) {
+      console.error('解析成就失败:', error)
       throw error
     }
   }
@@ -537,6 +688,20 @@ ${existingSkillsList}
         learningTime: '1-2个月',
         trend: 'stable' as const,
         description: '能够使用透视表、高级函数和VBA宏，进行复杂数据分析和报表制作'
+        // 智能备选推荐（基于用户背景）- 继续
+  const getIntelligentFallbackSkills = (): AISkillRecommendation[] => {
+    const baseSkills = [
+      {
+        name: 'Excel高级应用',
+        level: 'proficient' as const,
+        category: '办公软件',
+        reason: '现代办公必备，数据分析基础工具',
+        priority: 'high' as const,
+        selected: true,
+        salaryImpact: '提升15-20%',
+        learningTime: '1-2个月',
+        trend: 'stable' as const,
+        description: '能够使用透视表、高级函数和VBA宏，进行复杂数据分析和报表制作'
       },
       {
         name: 'PowerPoint专业制作',
@@ -668,7 +833,7 @@ ${experienceInfo}
 5. 体现AI时代的适应能力和学习能力
 6. 如果有工作成就，要在总结中体现具体的价值贡献
 7. 展现技能组合的协同效应
-8. 语言简洁专业，适合简历
+8. 语言简洁专业，适合简历使用
 9. 开头要有一个强有力的概括句
 10. 体现持续学习和技术敏感度
 
@@ -765,6 +930,26 @@ ${experienceInfo}
     return summary
   }
 
+  // 语言管理函数
+  const handleAddLanguage = () => {
+    if (newLanguage.name.trim()) {
+      const language: Language = {
+        id: Date.now().toString(),
+        name: newLanguage.name.trim(),
+        proficiency: newLanguage.proficiency,
+        certificate: newLanguage.certificate.trim() || undefined
+      }
+      
+      setLanguages(prev => [...prev, language])
+      setNewLanguage({ name: '', proficiency: 'intermediate', certificate: '' })
+      setShowLanguageForm(false)
+    }
+  }
+
+  const removeLanguage = (id: string) => {
+    setLanguages(prev => prev.filter(lang => lang.id !== id))
+  }
+
   // 组件初始化
   useEffect(() => {
     setIsLoading(true)
@@ -772,7 +957,8 @@ ${experienceInfo}
     setTimeout(async () => {
       await Promise.all([
         generateAISkillRecommendations(true), // 初始化时清空历史
-        generateIndustryAnalysis()
+        generateIndustryAnalysis(),
+        generateAchievements() // 生成工作成就
       ])
       setIsLoading(false)
     }, 2000)
@@ -829,7 +1015,7 @@ ${experienceInfo}
     setEditingSkillData(null)
   }
 
-  // 去重后的自定义技能添加
+  // 修复：去重后的自定义技能添加
   const handleAddCustomSkill = async () => {
     if (newSkill.name.trim()) {
       // 检查是否与现有技能重复
@@ -879,7 +1065,9 @@ ${experienceInfo}
     }
   }
 
+  // 修复：自定义技能删除函数
   const removeCustomSkill = (id: string) => {
+    console.log('删除自定义技能:', id)
     setCustomSkills(prev => (prev || []).filter(skill => skill.id !== id))
   }
 
@@ -906,6 +1094,7 @@ ${experienceInfo}
       skills: allSkills,
       skillsSummary,
       achievements,
+      languages,
       industryAnalysis: industryAnalysis || {
         trends: [],
         emergingSkills: [],
@@ -918,8 +1107,7 @@ ${experienceInfo}
 
   const selectedCount = recommendedSkills.filter(skill => skill.selected).length
   const customSkillsCount = customSkills ? customSkills.length : 0
-
-  if (isLoading) {
+    if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-md">
@@ -930,6 +1118,7 @@ ${experienceInfo}
             <p>💼 评估工作经历价值</p>
             <p>📊 研究行业技能趋势</p>
             <p>🎯 生成个性化推荐</p>
+            <p>🏆 提取量化成就</p>
             <p>🤖 为每个技能生成详细描述</p>
           </div>
         </div>
@@ -978,6 +1167,28 @@ ${experienceInfo}
                 AI技能推荐
               </button>
               <button
+                onClick={() => setShowAnalysisTab('achievements')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  showAnalysisTab === 'achievements'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Award className="inline h-4 w-4 mr-1" />
+                工作成就
+              </button>
+              <button
+                onClick={() => setShowAnalysisTab('languages')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  showAnalysisTab === 'languages'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Globe className="inline h-4 w-4 mr-1" />
+                语言能力
+              </button>
+              <button
                 onClick={() => setShowAnalysisTab('analysis')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   showAnalysisTab === 'analysis'
@@ -1002,6 +1213,227 @@ ${experienceInfo}
             </nav>
           </div>
         </div>
+        {/* 工作成就标签页 */}
+        {showAnalysisTab === 'achievements' && (
+          <div className="space-y-8">
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    <Award className="inline h-8 w-8 text-orange-500 mr-2" />
+                    工作成就（量化展示价值）
+                  </h1>
+                  <p className="text-gray-600">
+                    基于您的工作经历，AI自动提取并生成量化成就，突出您的价值贡献
+                  </p>
+                </div>
+                
+                <button
+                  onClick={generateAchievements}
+                  disabled={isGeneratingAchievements}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    isGeneratingAchievements
+                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                      : 'bg-orange-600 text-white hover:bg-orange-700'
+                  }`}
+                >
+                  <Wand2 className={`h-4 w-4 ${isGeneratingAchievements ? 'animate-spin' : ''}`} />
+                  <span>{isGeneratingAchievements ? 'AI分析生成中...' : '重新生成成就'}</span>
+                </button>
+              </div>
+
+              {achievements.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-6">
+                    {achievements.map((achievement, index) => (
+                      <div key={achievement.id} className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                              {index + 1}
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">{achievement.title}</h3>
+                          </div>
+                          <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+                            {achievement.type === 'work' ? '工作' : achievement.type === 'project' ? '项目' : achievement.type === 'education' ? '教育' : '其他'}
+                          </span>
+                        </div>
+                        
+                        <p className="text-gray-700 mb-3 leading-relaxed">{achievement.description}</p>
+                        
+                        {achievement.quantifiedImpact && (
+                          <div className="bg-white bg-opacity-50 rounded-lg p-3 border border-orange-200">
+                            <p className="text-sm text-orange-800 font-medium">量化影响：{achievement.quantifiedImpact}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">💡 简历写作提示</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <p>• 每个成就都已包含具体的量化数据，可直接用于简历</p>
+                      <p>• 建议将这些成就分散放入对应的工作经历中</p>
+                      <p>• 使用动词开头的表述方式，突出主动性和成果导向</p>
+                      <p>• 在面试时准备详细的背景故事来支撑这些成就</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Award className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg mb-2">还没有生成工作成就</p>
+                  <p className="text-sm">点击"重新生成成就"按钮，AI将基于您的工作经历生成量化成就</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 语言能力标签页 */}
+        {showAnalysisTab === 'languages' && (
+          <div className="space-y-8">
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    <Globe className="inline h-8 w-8 text-green-500 mr-2" />
+                    语言能力
+                  </h1>
+                  <p className="text-gray-600">
+                    添加您的语言技能和相关证书，提升简历的国际化竞争力
+                  </p>
+                </div>
+                
+                <button
+                  onClick={() => setShowLanguageForm(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>添加语言</span>
+                </button>
+              </div>
+
+              {showLanguageForm && (
+                <div className="mb-6 p-6 bg-green-50 rounded-lg border border-green-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">添加新语言</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">语言名称*</label>
+                      <input
+                        type="text"
+                        value={newLanguage.name}
+                        onChange={(e) => setNewLanguage(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        placeholder="如：英语、日语、德语"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">熟练程度*</label>
+                      <select
+                        value={newLanguage.proficiency}
+                        onChange={(e) => setNewLanguage(prev => ({ ...prev, proficiency: e.target.value as any }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="basic">初级 (Basic)</option>
+                        <option value="intermediate">中级 (Intermediate)</option>
+                        <option value="fluent">流利 (Fluent)</option>
+                        <option value="native">母语 (Native)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">证书/考试成绩</label>
+                      <input
+                        type="text"
+                        value={newLanguage.certificate}
+                        onChange={(e) => setNewLanguage(prev => ({ ...prev, certificate: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        placeholder="如：IELTS 7.5、JLPT N2"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleAddLanguage}
+                      disabled={!newLanguage.name.trim()}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        newLanguage.name.trim()
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      确认添加
+                    </button>
+                    <button
+                      onClick={() => setShowLanguageForm(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {languages.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {languages.map((language) => (
+                      <div key={language.id} className="p-4 border border-gray-200 rounded-lg bg-green-50">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center space-x-3">
+                            <Globe className="h-5 w-5 text-green-600" />
+                            <span className="font-semibold text-gray-900">{language.name}</span>
+                          </div>
+                          <button
+                            onClick={() => removeLanguage(language.id)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            title="删除语言"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        
+                        <div className="mb-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${proficiencyColors[language.proficiency]}`}>
+                            {proficiencyLabels[language.proficiency]}
+                          </span>
+                        </div>
+                        
+                        {language.certificate && (
+                          <div className="mt-2 p-2 bg-white rounded border">
+                            <p className="text-xs text-gray-500 mb-1">证书/成绩：</p>
+                            <p className="text-sm text-gray-700 font-medium">{language.certificate}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">📋 简历格式建议</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <p>• <strong>语言名称</strong> - <strong>熟练程度</strong> {languages.some(l => l.certificate) && '- 证书/成绩'}</p>
+                      {languages.map((lang, index) => (
+                        <p key={index}>• {lang.name} - {proficiencyLabels[lang.proficiency]} {lang.certificate && `- ${lang.certificate}`}</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Globe className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg mb-2">还没有添加语言技能</p>
+                  <p className="text-sm">点击"添加语言"按钮开始添加您的语言能力</p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    <p>支持的熟练程度：母语 > 流利 > 中级 > 初级</p>
+                    <p>常见证书：IELTS、TOEFL、JLPT、HSK、德福等</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {showAnalysisTab === 'skills' && (
           <div className="space-y-8">
             {aiError && (
@@ -1084,6 +1516,7 @@ ${experienceInfo}
                   </button>
                 </div>
               </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {recommendedSkills.map((skill, index) => {
                   const isEditing = editingSkill === `rec-${index}`
@@ -1097,7 +1530,7 @@ ${experienceInfo}
                       } ${isEditing ? 'ring-2 ring-purple-500' : ''}`}
                     >
                       {isEditing && editingSkillData ? (
-                        // 编辑模式
+                        // 编辑模式的代码保持不变...
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <h3 className="font-bold text-purple-700">编辑技能</h3>
@@ -1183,7 +1616,7 @@ ${experienceInfo}
                           </div>
                         </div>
                       ) : (
-                        // 显示模式
+                        // 显示模式的代码保持不变...
                         <div onClick={() => toggleSkillSelection(index)} className="cursor-pointer">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center space-x-2">
@@ -1248,6 +1681,7 @@ ${experienceInfo}
               </div>
             </div>
 
+            {/* 修复后的自定义技能部分 */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">自定义技能</h2>
@@ -1347,9 +1781,16 @@ ${experienceInfo}
                           >
                             <Edit3 className="h-4 w-4" />
                           </button>
+                          {/* 修复：添加事件阻止冒泡和正确的删除处理 */}
                           <button
-                            onClick={() => removeCustomSkill(skill.id)}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('点击删除按钮，技能ID:', skill.id)
+                              removeCustomSkill(skill.id)
+                            }}
                             className="text-red-600 hover:text-red-800"
+                            title="删除此技能"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1477,6 +1918,7 @@ ${experienceInfo}
             )}
           </div>
         )}
+
         {showAnalysisTab === 'summary' && (
           <div className="space-y-8">
             {/* 数据分析卡片 */}
@@ -1509,21 +1951,21 @@ ${experienceInfo}
                 
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-3xl font-bold text-purple-600 mb-2">
-                    {experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)}
+                    {achievements.length}
                   </div>
                   <div className="text-sm text-purple-700 font-medium">量化成就</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    具体的工作成果
+                    AI生成的成就展示
                   </div>
                 </div>
                 
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
                   <div className="text-3xl font-bold text-orange-600 mb-2">
-                    {[...new Set([...recommendedSkills.filter(s => s.selected), ...customSkills].map(s => s.category))].length}
+                    {languages.length}
                   </div>
-                  <div className="text-sm text-orange-700 font-medium">技能领域</div>
+                  <div className="text-sm text-orange-700 font-medium">语言技能</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    跨领域综合能力
+                    多语言竞争力
                   </div>
                 </div>
               </div>
@@ -1567,11 +2009,26 @@ ${experienceInfo}
                       <div className="w-20 h-2 bg-gray-200 rounded-full mr-2">
                         <div 
                           className="h-2 bg-purple-500 rounded-full" 
-                          style={{ width: `${Math.min(100, experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0) * 20)}%` }}
+                          style={{ width: `${Math.min(100, achievements.length * 15)}%` }}
                         ></div>
                       </div>
                       <span className="text-purple-600 font-medium">
-                        {Math.min(100, experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0) * 20)}%
+                        {Math.min(100, achievements.length * 15)}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>国际化竞争力</span>
+                    <div className="flex items-center">
+                      <div className="w-20 h-2 bg-gray-200 rounded-full mr-2">
+                        <div 
+                          className="h-2 bg-orange-500 rounded-full" 
+                          style={{ width: `${Math.min(100, languages.length * 30)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-orange-600 font-medium">
+                        {Math.min(100, languages.length * 30)}%
                       </span>
                     </div>
                   </div>
@@ -1644,8 +2101,8 @@ ${experienceInfo}
                         <div className="text-blue-700">技能体现</div>
                       </div>
                       <div className="text-center">
-                        <div className={`text-lg font-bold ${experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? 'text-green-600' : 'text-yellow-600'}`}>
-                          {experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? '✓' : '!'}
+                        <div className={`text-lg font-bold ${achievements.length > 0 || experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {achievements.length > 0 || experience.some(e => e.company && skillsSummary.includes(e.company)) || /工作|实习|经历/.test(skillsSummary) ? '✓' : '!'}
                         </div>
                         <div className="text-blue-700">经验结合</div>
                       </div>
@@ -1658,7 +2115,7 @@ ${experienceInfo}
                   <p className="text-lg mb-2">还没有生成技能总结</p>
                   <p className="text-sm">选择技能后点击"AI生成增强总结"按钮</p>
                   <p className="text-xs text-gray-400 mt-2">
-                    新版本将结合您的工作经验和量化成就生成更有说服力的总结
+                    新版本将结合您的工作经验、量化成就和语言能力生成更有说服力的总结
                   </p>
                 </div>
               )}
@@ -1704,33 +2161,35 @@ ${experienceInfo}
             )}
           </div>
         )}
-        {(selectedCount > 0 || customSkillsCount > 0) && (
+        {(selectedCount > 0 || customSkillsCount > 0 || achievements.length > 0 || languages.length > 0) && (
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">🎯 AI分析完成情况</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">🎯 简历内容完成情况</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{selectedCount + customSkillsCount}</div>
-                <div className="text-sm text-gray-600">推荐技能</div>
+                <div className="text-sm text-gray-600">专业技能</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">{achievements.length}</div>
+                <div className="text-sm text-gray-600">量化成就</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{languages.length}</div>
+                <div className="text-sm text-gray-600">语言技能</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">{skillsSummary ? '1' : '0'}</div>
                 <div className="text-sm text-gray-600">AI技能总结</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-indigo-600">
                   {recommendedSkills.filter(s => s.priority === 'high' && s.selected).length}
                 </div>
                 <div className="text-sm text-gray-600">高优先级技能</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {recommendedSkills.filter(s => s.trend === 'rising' && s.selected).length}
-                </div>
-                <div className="text-sm text-gray-600">上升趋势技能</div>
-              </div>
             </div>
             <p className="text-blue-800 text-sm">
-              🎉 AI已完成深度分析，为您推荐了最符合市场趋势的技能组合！每个技能都包含详细的能力描述，让HR一眼就能看懂您的实际水平。
+              🎉 恭喜！您的简历内容已经非常丰富了。包含专业技能、量化成就、语言能力等关键要素，将大大提升简历的竞争力！
             </p>
           </div>
         )}

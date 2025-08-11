@@ -144,7 +144,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
           fontSize: '24px', 
           fontWeight: 'bold', 
           marginBottom: '8px',
-          letterSpacing: '1px'
+          letterSpacing: '1px',
+          color: '#000000'
         }}>
           {personalInfo.name}
         </h1>
@@ -154,7 +155,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
           justifyContent: 'center', 
           gap: '16px',
           flexWrap: 'wrap',
-          color: '#4b5563'
+          color: '#374151'
         }}>
           <span>{personalInfo.location}</span>
           <span>{personalInfo.phone}</span>
@@ -172,14 +173,15 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             个人能力总结
           </h2>
           <div style={{ 
             fontSize: '11px', 
             lineHeight: '1.6',
-            color: '#374151'
+            color: '#1f2937'
           }}>
             {skillsSummary || personalInfo.summary}
           </div>
@@ -196,7 +198,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             主要成就
           </h2>
@@ -211,12 +214,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                 marginBottom: '4px',
                 position: 'relative',
                 paddingLeft: '8px',
-                lineHeight: '1.5'
+                lineHeight: '1.5',
+                color: '#1f2937'
               }}>
                 <span style={{
                   position: 'absolute',
                   left: '0',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  color: '#000000'
                 }}>•</span>
                 {achievement.description}
               </li>
@@ -235,7 +240,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             技能专长
           </h2>
@@ -251,7 +257,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   <div style={{ 
                     fontWeight: '600', 
                     fontSize: '11px',
-                    color: '#374151',
+                    color: '#111827',
                     marginBottom: '4px'
                   }}>
                     {category}：
@@ -259,7 +265,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   {skillGroups[category].map((skill, index) => (
                   <div key={index} style={{ 
                       fontSize: '11px',
-                      color: '#4b5563',
+                      color: '#1f2937',
                       marginBottom: '2px',
                       lineHeight: '1.3'
                     }}>
@@ -270,14 +276,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
               ))}
             </div>
             
-           {/* 右栏技能 */}
+            {/* 右栏技能 */}
             <div>
               {rightColumnSkills.map((category) => (
                 <div key={category} style={{ marginBottom: '8px' }}>
                   <div style={{ 
                     fontWeight: '600', 
                     fontSize: '11px',
-                    color: '#374151',
+                    color: '#111827',
                     marginBottom: '4px'
                   }}>
                     {category}：
@@ -285,7 +291,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   {skillGroups[category].map((skill, index) => (
                     <div key={index} style={{ 
                       fontSize: '11px',
-                      color: '#4b5563',
+                      color: '#1f2937',
                       marginBottom: '2px',
                       lineHeight: '1.3'
                     }}>
@@ -309,7 +315,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             工作经历
           </h2>
@@ -326,13 +333,15 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                     <div style={{ 
                       fontWeight: '600', 
                       fontSize: '11px',
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      color: '#111827'
                     }}>
                       {exp.position} | {exp.duration}
                     </div>
                     <div style={{ 
                       fontWeight: '600', 
-                      fontSize: '11px'
+                      fontSize: '11px',
+                      color: '#1f2937'
                     }}>
                       {exp.company} - {personalInfo.location?.split(',').pop()?.trim() || 'China'}
                     </div>
@@ -352,12 +361,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                       marginBottom: '4px',
                       position: 'relative',
                       paddingLeft: '8px',
-                      lineHeight: '1.4'
+                      lineHeight: '1.4',
+                      color: '#1f2937'
                     }}>
                       <span style={{
                         position: 'absolute',
                         left: '0',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        color: '#000000'
                       }}>•</span>
                       {exp.description}
                     </li>
@@ -369,12 +380,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                         marginBottom: '4px',
                         position: 'relative',
                         paddingLeft: '8px',
-                        lineHeight: '1.4'
+                        lineHeight: '1.4',
+                        color: '#1f2937'
                       }}>
                         <span style={{
                           position: 'absolute',
                           left: '0',
-                          fontWeight: 'bold'
+                          fontWeight: 'bold',
+                          color: '#000000'
                         }}>•</span>
                         {achievement}
                       </li>
@@ -397,7 +410,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             教育背景
           </h2>
@@ -412,12 +426,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   <div>
                     <div style={{ 
                       fontWeight: '600', 
-                      fontSize: '11px'
+                      fontSize: '11px',
+                      color: '#111827'
                     }}>
                       {edu.school} - {personalInfo.location} | {edu.degree}
                     </div>
                     <div style={{ 
-                      fontSize: '11px'
+                      fontSize: '11px',
+                      color: '#1f2937'
                     }}>
                       {edu.major}，{edu.duration}
                     </div>
@@ -427,7 +443,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   <div style={{ 
                     fontSize: '11px',
                     marginTop: '4px',
-                    color: '#4b5563'
+                    color: '#374151'
                   }}>
                     {edu.description}
                   </div>
@@ -436,7 +452,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
                   <div style={{ 
                     fontSize: '11px',
                     marginTop: '2px',
-                    color: '#4b5563'
+                    color: '#374151'
                   }}>
                     GPA: {edu.gpa}
                   </div>
@@ -457,7 +473,8 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             语言能力
           </h2>
@@ -470,17 +487,18 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
               <div key={language.id}>
                 <div style={{ 
                   fontWeight: '600', 
-                  fontSize: '11px'
+                  fontSize: '11px',
+                  color: '#111827'
                 }}>
                   {language.name}
                 </div>
                 <div style={{ 
                   fontSize: '11px',
-                  color: '#4b5563'
+                  color: '#1f2937'
                 }}>
                   {language.level}
                   {language.description && (
-                    <span style={{ marginLeft: '8px', fontStyle: 'italic' }}>
+                    <span style={{ marginLeft: '8px', fontStyle: 'italic', color: '#374151' }}>
                       ({language.description})
                     </span>
                   )}
@@ -499,13 +517,14 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             letterSpacing: '0.5px',
             marginBottom: '8px',
             paddingBottom: '4px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid #e5e7eb',
+            color: '#000000'
           }}>
             语言能力
           </h2>
           <div style={{ 
             fontSize: '11px',
-            color: '#6b7280',
+            color: '#374151',
             fontStyle: 'italic'
           }}>
             未填写语言信息

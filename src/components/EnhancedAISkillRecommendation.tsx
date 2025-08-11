@@ -688,7 +688,7 @@ ${existingSkillsList}
         learningTime: '1-2个月',
         trend: 'stable' as const,
         description: '能够使用透视表、高级函数和VBA宏，进行复杂数据分析和报表制作'
-        // 智能备选推荐（基于用户背景）- 继续
+        // 智能备选推荐（基于用户背景）
   const getIntelligentFallbackSkills = (): AISkillRecommendation[] => {
     const baseSkills = [
       {

@@ -65,6 +65,13 @@ interface Achievement {
   date?: string
 }
 
+interface Language {
+  id: string
+  name: string
+  level: string
+  description?: string
+}
+
 interface IndustryAnalysis {
   trends: string[]
   emergingSkills: string[]
@@ -82,6 +89,7 @@ interface ResumeData {
   certificates: Certificate[]
   skillsSummary?: string
   achievements: Achievement[]
+  languages: Language[]
   industryAnalysis?: IndustryAnalysis
 }
 
@@ -91,7 +99,7 @@ interface TemplateProps {
 }
 
 const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = false }) => {
-  const { personalInfo, experience, education, skills, projects, certificates, skillsSummary, achievements } = resumeData
+  const { personalInfo, experience, education, skills, projects, certificates, skillsSummary, achievements, languages } = resumeData
 
   // 将技能按类别分组并转换为标准格式
   const formatSkillsForDisplay = () => {
@@ -262,7 +270,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
               ))}
             </div>
             
-            {/* 右栏技能 */}
+           {/* 右栏技能 */}
             <div>
               {rightColumnSkills.map((category) => (
                 <div key={category} style={{ marginBottom: '8px' }}>
@@ -439,54 +447,71 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
         </section>
       )}
 
-      {/* 语言能力 - 双栏布局 */}
-      <section>
-        <h2 style={{ 
-          fontSize: '14px', 
-          fontWeight: '600', 
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          marginBottom: '8px',
-          paddingBottom: '4px',
-          borderBottom: '1px solid #e5e7eb'
-        }}>
-          语言能力
-        </h2>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: '24px'
-        }}>
-          <div>
-            <div style={{ 
-              fontWeight: '600', 
-              fontSize: '11px'
-            }}>
-              中文（普通话）
-            </div>
-            <div style={{ 
-              fontSize: '11px',
-              color: '#4b5563'
-            }}>
-              母语或双语水平
-            </div>
+      {/* 语言能力 - 动态显示用户填写的语言 */}
+      {languages && languages.length > 0 ? (
+        <section>
+          <h2 style={{ 
+            fontSize: '14px', 
+            fontWeight: '600', 
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            marginBottom: '8px',
+            paddingBottom: '4px',
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            语言能力
+          </h2>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: languages.length > 2 ? '1fr 1fr' : '1fr', 
+            gap: '24px'
+          }}>
+            {languages.map((language) => (
+              <div key={language.id}>
+                <div style={{ 
+                  fontWeight: '600', 
+                  fontSize: '11px'
+                }}>
+                  {language.name}
+                </div>
+                <div style={{ 
+                  fontSize: '11px',
+                  color: '#4b5563'
+                }}>
+                  {language.level}
+                  {language.description && (
+                    <span style={{ marginLeft: '8px', fontStyle: 'italic' }}>
+                      ({language.description})
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-          <div>
-            <div style={{ 
-              fontWeight: '600', 
-              fontSize: '11px'
-            }}>
-              英语
-            </div>
-            <div style={{ 
-              fontSize: '11px',
-              color: '#4b5563'
-            }}>
-              母语或双语水平
-            </div>
+        </section>
+      ) : (
+        // 如果没有填写语言，显示默认提示
+        <section>
+          <h2 style={{ 
+            fontSize: '14px', 
+            fontWeight: '600', 
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            marginBottom: '8px',
+            paddingBottom: '4px',
+            borderBottom: '1px solid #e5e7eb'
+          }}>
+            语言能力
+          </h2>
+          <div style={{ 
+            fontSize: '11px',
+            color: '#6b7280',
+            fontStyle: 'italic'
+          }}>
+            未填写语言信息
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 打印样式 */}
       <style jsx>{`

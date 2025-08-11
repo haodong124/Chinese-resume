@@ -1430,7 +1430,7 @@ ${experienceInfo}
                   <p className="text-lg mb-2">还没有添加语言技能</p>
                   <p className="text-sm">点击"添加语言"按钮开始添加您的语言能力</p>
                   <div className="mt-4 text-xs text-gray-400">
-                    <p>支持的熟练程度：母语 > 流利 > 中级 > 初级</p>
+                    <p>支持的熟练程度：母语 &gt; 流利 &gt; 中级 &gt; 初级</p>
                     <p>常见证书：IELTS、TOEFL、JLPT、HSK、德福等</p>
                   </div>
                 </div>

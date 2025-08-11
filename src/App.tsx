@@ -75,6 +75,14 @@ export interface Achievement {
   date?: string
 }
 
+// 语言接口
+export interface Language {
+  id: string
+  name: string
+  level: string
+  description?: string
+}
+
 export interface IndustryAnalysis {
   trends: string[]
   emergingSkills: string[]
@@ -91,6 +99,7 @@ export interface ResumeData {
   skills: Skill[]
   certificates: Certificate[]
   achievements: Achievement[]
+  languages: Language[] // 新增语言字段
   skillsSummary?: string
   industryAnalysis?: IndustryAnalysis
 }
@@ -121,6 +130,7 @@ function App() {
     skills: [],
     certificates: [],
     achievements: [],
+    languages: [], // 新增语言数组
     skillsSummary: '',
     industryAnalysis: undefined
   })
@@ -132,6 +142,7 @@ function App() {
       setResumeData({
         ...savedData,
         experience: savedData.experience || [],
+        languages: savedData.languages || [], // 确保语言数据被加载
         personalInfo: {
           ...savedData.personalInfo,
           website: savedData.personalInfo?.website || ''
@@ -153,19 +164,21 @@ function App() {
     window.scrollTo(0, 0)
   }
 
-  // 处理信息收集完成（包括个人信息、教育、工作经验、项目）
+  // 处理信息收集完成（包括个人信息、教育、工作经验、项目、语言）
   const handleCollectionComplete = (data: {
     personalInfo: PersonalInfo
     education: Education[]
     experience: Experience[]
     projects: Project[]
+    languages: Language[] // 新增
   }) => {
     setResumeData(prev => ({
       ...prev,
       personalInfo: data.personalInfo,
       education: data.education,
       experience: data.experience,
-      projects: data.projects
+      projects: data.projects,
+      languages: data.languages // 新增
     }))
     goToStep('skills')
   }
@@ -212,6 +225,7 @@ function App() {
         skills: [],
         certificates: [],
         achievements: [],
+        languages: [], // 重置语言数据
         skillsSummary: '',
         industryAnalysis: undefined
       })
@@ -235,7 +249,8 @@ function App() {
               personalInfo: resumeData.personalInfo,
               education: resumeData.education,
               experience: resumeData.experience,
-              projects: resumeData.projects
+              projects: resumeData.projects,
+              languages: resumeData.languages // 新增
             }}
             onComplete={handleCollectionComplete}
             onBack={() => goToStep('landing')}

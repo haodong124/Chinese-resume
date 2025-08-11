@@ -174,7 +174,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             paddingBottom: '4px',
             borderBottom: '1px solid #e5e7eb'
           }}>
-            专业技能总结
+            个人能力总结
           </h2>
           <div style={{ 
             fontSize: '11px', 

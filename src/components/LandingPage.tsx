@@ -1,12 +1,46 @@
-import React, { useState } from 'react'
-import { FileText, Zap, Download, Palette, Users, Star, ArrowRight, Play, CheckCircle, Globe, Smartphone, Lock } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { FileText, Zap, Download, Palette, Users, Star, ArrowRight, Play, CheckCircle, Globe, Smartphone, Lock, MessageSquare, Quote } from 'lucide-react'
 
 interface LandingPageProps {
   onGetStarted: () => void
 }
 
+interface PublicFeedback {
+  id: string
+  name: string
+  rating: number
+  comment: string
+  timestamp: string
+}
+
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
   const [activeTemplate, setActiveTemplate] = useState(0)
+  const [publicFeedbacks, setPublicFeedbacks] = useState<PublicFeedback[]>([])
+  const [feedbackStats, setFeedbackStats] = useState({
+    total: 0,
+    averageRating: '0.0'
+  })
+
+  // 获取公开评价
+  useEffect(() => {
+    const fetchFeedbacks = async () => {
+      try {
+        const response = await fetch('/.netlify/functions/collect-feedback')
+        if (response.ok) {
+          const data = await response.json()
+          setPublicFeedbacks(data.feedbacks || [])
+          setFeedbackStats({
+            total: data.total || 0,
+            averageRating: data.averageRating || '0.0'
+          })
+        }
+      } catch (error) {
+        console.error('获取评价失败:', error)
+      }
+    }
+    
+    fetchFeedbacks()
+  }, [])
 
   const features = [
     {
@@ -85,6 +119,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     }
   ]
 
+  // 星星显示组件
+  const StarDisplay = ({ rating }: { rating: number }) => (
+    <div className="flex items-center space-x-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`h-4 w-4 ${
+            star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+          }`}
+        />
+      ))}
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Header */}
@@ -121,20 +169,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               </div>
               
               <div className="space-y-4">
- <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
-    您的最终选择，
-    <br />
-    <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-      一站式专业级别的
-    </span>
-    <br />
-    简历制作工具
-  </h1>
-  
-  <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-    总结您的核心竞争力，打造专业简历，助力职业发展。
-  </p>
-</div>
+                <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
+                  您的最终选择，
+                  <br />
+                  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    一站式专业级别的
+                  </span>
+                  <br />
+                  简历制作工具
+                </h1>
+                
+                <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
+                  总结您的核心竞争力，打造专业简历，助力职业发展。
+                </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
@@ -303,6 +351,79 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           </div>
         </div>
       </section>
+
+      {/* 用户真实反馈展示 */}
+      {publicFeedbacks.length > 0 && (
+        <section className="py-20 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                来自真实用户的反馈
+              </h2>
+              <p className="text-lg text-gray-600 mb-6">
+                每一条评价都来自真实的用户体验
+              </p>
+              <div className="flex items-center justify-center space-x-6">
+                <div className="flex items-center space-x-2">
+                  <StarDisplay rating={Math.round(parseFloat(feedbackStats.averageRating))} />
+                  <span className="text-2xl font-bold text-gray-900">{feedbackStats.averageRating}</span>
+                  <span className="text-gray-600">平均评分</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5 text-blue-600" />
+                  <span className="text-lg font-semibold text-gray-900">{feedbackStats.total}</span>
+                  <span className="text-gray-600">位用户评价</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {publicFeedbacks.slice(0, 6).map((feedback) => (
+                <div
+                  key={feedback.id}
+                  className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100"
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                      {feedback.name[0]}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-gray-900">{feedback.name}</h4>
+                        <StarDisplay rating={feedback.rating} />
+                      </div>
+                      <div className="relative">
+                        <Quote className="absolute top-0 left-0 h-4 w-4 text-blue-400 opacity-50" />
+                        <p className="text-gray-700 text-sm leading-relaxed pl-6 pr-2">
+                          {feedback.comment}
+                        </p>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-3">
+                        {new Date(feedback.timestamp).toLocaleDateString('zh-CN')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {feedbackStats.total > 6 && (
+              <div className="text-center mt-8">
+                <p className="text-gray-600">
+                  还有 {feedbackStats.total - 6} 条用户评价...
+                </p>
+                <button 
+                  onClick={onGetStarted}
+                  className="mt-4 text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
+                >
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  开始使用并分享您的体验 →
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-blue-600 to-indigo-600">

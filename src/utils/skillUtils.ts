@@ -1,3 +1,5 @@
+// src/utils/skillUtils.ts
+
 interface BaseSkill {
   name: string;
   category: string;

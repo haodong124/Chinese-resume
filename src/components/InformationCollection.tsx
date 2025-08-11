@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ArrowLeft, ArrowRight, User, GraduationCap, Briefcase, FolderOpen, Plus, Trash2, Edit3, Calendar, Building, Star, Sparkles, Target, TrendingUp, Wand2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, User, GraduationCap, Briefcase, FolderOpen, Plus, Trash2, Edit3, Calendar, Building, Star, Sparkles, Target, TrendingUp, Wand2, Globe, Award } from 'lucide-react'
 
 interface PersonalInfo {
   name: string
@@ -41,18 +41,27 @@ interface Project {
   link?: string
 }
 
+interface Language {
+  id: string
+  name: string
+  level: string
+  description?: string
+}
+
 interface InformationCollectionProps {
   initialData?: {
     personalInfo: PersonalInfo
     education: Education[]
     experience: Experience[]
     projects: Project[]
+    languages: Language[]
   }
   onComplete: (data: {
     personalInfo: PersonalInfo
     education: Education[]
     experience: Experience[]
     projects: Project[]
+    languages: Language[]
   }) => void
   onBack: () => void
 }
@@ -114,6 +123,15 @@ const InformationCollection: React.FC<InformationCollectionProps> = ({
     description: '',
     technologies: '',
     link: ''
+  })
+
+  // 语言能力
+  const [languages, setLanguages] = useState<Language[]>(initialData?.languages || [])
+  const [currentLanguage, setCurrentLanguage] = useState<Language>({
+    id: '',
+    name: '',
+    level: '',
+    description: ''
   })
 
   // 编辑状态
@@ -388,6 +406,25 @@ ${experienceContext}
     }
   }
 
+  // 添加语言
+  const handleAddLanguage = () => {
+    if (currentLanguage.name.trim() && currentLanguage.level.trim()) {
+      const newLanguage = { ...currentLanguage, id: Date.now().toString() }
+      setLanguages(prev => [...prev, newLanguage])
+      setCurrentLanguage({
+        id: '',
+        name: '',
+        level: '',
+        description: ''
+      })
+    }
+  }
+
+  // 删除语言
+  const removeLanguage = (id: string) => {
+    setLanguages(prev => prev.filter(lang => lang.id !== id))
+  }
+
   // 验证并提交
   const handleSubmit = () => {
     if (!personalInfo.name || !personalInfo.email || !personalInfo.phone) {
@@ -400,7 +437,8 @@ ${experienceContext}
       personalInfo,
       education,
       experience,
-      projects
+      projects,
+      languages
     })
   }
 
@@ -506,6 +544,110 @@ ${experienceContext}
                 rows={4}
                 placeholder="简要介绍您的职业背景和核心优势..."
               />
+            </div>
+
+            {/* 语言能力部分 */}
+            <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Globe className="mr-2 h-5 w-5 text-blue-600" />
+                语言能力
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    语言名称 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={currentLanguage.name}
+                    onChange={(e) => setCurrentLanguage(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="如：中文（普通话）、English、日本語、Français等"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    水平描述 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={currentLanguage.level}
+                    onChange={(e) => setCurrentLanguage(prev => ({ ...prev, level: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="如：二级甲等、IELTS 6.5、N2级、母语水平等"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  补充说明（可选）
+                </label>
+                <textarea
+                  value={currentLanguage.description}
+                  onChange={(e) => setCurrentLanguage(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                  placeholder="如：具备日常沟通能力、能够阅读专业文档、商务交流无障碍等"
+                />
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={handleAddLanguage}
+                  disabled={!currentLanguage.name.trim() || !currentLanguage.level.trim()}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    currentLanguage.name.trim() && currentLanguage.level.trim()
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  添加语言
+                </button>
+              </div>
+
+              {/* 已添加的语言列表 */}
+              {languages.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-900 mb-3">已添加的语言能力</h4>
+                  <div className="space-y-2">
+                    {languages.map((lang) => (
+                      <div key={lang.id} className="flex items-center justify-between bg-white p-3 rounded-lg border">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <span className="font-medium text-gray-900">{lang.name}</span>
+                            <span className="text-blue-600 font-medium">{lang.level}</span>
+                          </div>
+                          {lang.description && (
+                            <p className="text-sm text-gray-600 mt-1">{lang.description}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeLanguage(lang.id)}
+                          className="text-red-600 hover:text-red-800 p-1"
+                          title="删除语言"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-2">💡 填写提示：</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• <strong>中文（普通话）</strong>：可填写一级甲等、二级甲等、二级乙等等</li>
+                    <li>• <strong>英语</strong>：可填写IELTS 6.5、TOEFL 100、CET-6等</li>
+                    <li>• <strong>日语</strong>：可填写N1、N2、N3等</li>
+                    <li>• <strong>其他语言</strong>：按实际水平填写，如母语水平、流利、基础等</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         )
@@ -1081,7 +1223,8 @@ ${experienceContext}
                个人信息 {personalInfo.name ? '✅' : '⏳'} | 
                教育 {education.length > 0 ? `✅(${education.length})` : '⏳'} | 
                工作 {experience.length > 0 ? `✅(${experience.length})` : '⏳'} | 
-               项目 {projects.length > 0 ? `✅(${projects.length})` : '⏳'}
+               项目 {projects.length > 0 ? `✅(${projects.length})` : '⏳'} |
+               语言 {languages.length > 0 ? `✅(${languages.length})` : '⏳'}
              </div>
              
              <button

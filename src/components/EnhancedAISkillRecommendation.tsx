@@ -669,7 +669,54 @@ ${experienceInfo}
 6. 如果有工作成就，要在总结中体现具体的
 // 继续 generateSkillsSummary 函数
       const prompt = `
-请为以下求职者撰写一个专业的技能总结，要求结合实际工作经验和量化成就：
+// 生成技能总结（增强版，结合工作经验和量化成就）
+const generateSkillsSummary = async () => {
+  const selectedSkills = [...recommendedSkills.filter(s => s.selected), ...customSkills]
+  if (selectedSkills.length === 0) {
+    alert('请先选择一些技能再生成总结')
+    return
+  }
+
+  setIsGeneratingSummary(true)
+  try {
+    const skillNames = selectedSkills.map(s => s.name).join('、')
+    const categories = [...new Set(selectedSkills.map(s => s.category))].join('、')
+    
+    // 整理工作经验信息（包含成就）
+    const experienceInfo = experience.map(exp => {
+      let expText = `${exp.position}@${exp.company}(${exp.duration})`
+      if (exp.isInternship) {
+        expText += '[实习]'
+      }
+      expText += `：${exp.description}`
+      
+      if (exp.achievements && exp.achievements.length > 0) {
+        expText += ` 主要成就：${exp.achievements.join('；')}`
+      }
+      return expText
+    }).join('\n')
+
+    // 分析技能描述中的能力
+    const skillCapabilities = selectedSkills
+      .filter(s => s.description)
+      .map(s => `${s.name}：${s.description}`)
+      .join('\n')
+
+    // 统计量化信息
+    const quantifiedData = {
+      totalSkills: selectedSkills.length,
+      techSkills: selectedSkills.filter(s => 
+        ['编程语言', '技术工具', '数据分析', '新兴技术'].includes(s.category)
+      ).length,
+      officeSkills: selectedSkills.filter(s => 
+        ['办公软件', '沟通协作'].includes(s.category)
+      ).length,
+      totalExperience: experience.length,
+      internshipCount: experience.filter(e => e.isInternship).length,
+      totalAchievements: experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)
+    }
+
+    const prompt = `请为以下求职者撰写一个专业的技能总结，要求结合实际工作经验和量化成就：
 
 个人信息：
 - 姓名：${personalInfo.name}
@@ -711,20 +758,19 @@ ${experienceInfo}
 
 请直接返回技能总结文字，不要包含其他内容：`
 
-      const systemMessage = `你是资深的简历写作专家和HR顾问，拥有15年的招聘和人才评估经验。你特别擅长：
+    const systemMessage = `你是资深的简历写作专家和HR顾问，拥有15年的招聘和人才评估经验。你特别擅长：
 1. 将技能和工作经验有机结合，展现候选人的综合实力
 2. 运用量化数据增强说服力
 3. 突出AI时代的核心竞争力
 4. 用简洁有力的语言展现最大价值
 你深知什么样的技能总结能让HR眼前一亮并产生面试邀请的冲动。`
 
-      const summary = await callAIService(prompt, systemMessage)
-      
-      // 如果生成的总结没有量化数据，进行二次优化
-      const hasQuantification = /\d+/.test(summary)
-      if (!hasQuantification && quantifiedData.totalAchievements > 0) {
-        const optimizationPrompt = `
-请优化以下技能总结，确保包含更多量化信息：
+    const summary = await callAIService(prompt, systemMessage)
+    
+    // 如果生成的总结没有量化数据，进行二次优化
+    const hasQuantification = /\d+/.test(summary)
+    if (!hasQuantification && quantifiedData.totalAchievements > 0) {
+      const optimizationPrompt = `请优化以下技能总结，确保包含更多量化信息：
 
 当前总结：${summary}
 
@@ -738,36 +784,36 @@ ${experienceInfo}
 
 请直接返回优化后的总结：`
 
-        try {
-          const optimizedSummary = await callAIService(optimizationPrompt, systemMessage)
-          setSkillsSummary(optimizedSummary.trim())
-        } catch (error) {
-          setSkillsSummary(summary.trim())
-        }
-      } else {
+      try {
+        const optimizedSummary = await callAIService(optimizationPrompt, systemMessage)
+        setSkillsSummary(optimizedSummary.trim())
+      } catch (error) {
         setSkillsSummary(summary.trim())
       }
-
-    } catch (error) {
-      console.error('技能总结生成失败:', error)
-      
-      // 生成智能备选总结
-      const fallbackSummary = generateIntelligentFallbackSummary(selectedSkills, experience, {
-        totalSkills: selectedSkills.length,
-        techSkills: selectedSkills.filter(s => 
-          ['编程语言', '技术工具', '数据分析', '新兴技术'].includes(s.category)
-        ).length,
-        officeSkills: selectedSkills.filter(s => 
-          ['办公软件', '沟通协作'].includes(s.category)
-        ).length,
-        totalExperience: experience.length,
-        internshipCount: experience.filter(e => e.isInternship).length,
-        totalAchievements: experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)
-      })
-      setSkillsSummary(fallbackSummary)
+    } else {
+      setSkillsSummary(summary.trim())
     }
-    setIsGeneratingSummary(false)
+
+  } catch (error) {
+    console.error('技能总结生成失败:', error)
+    
+    // 生成智能备选总结
+    const fallbackSummary = generateIntelligentFallbackSummary(selectedSkills, experience, {
+      totalSkills: selectedSkills.length,
+      techSkills: selectedSkills.filter(s => 
+        ['编程语言', '技术工具', '数据分析', '新兴技术'].includes(s.category)
+      ).length,
+      officeSkills: selectedSkills.filter(s => 
+        ['办公软件', '沟通协作'].includes(s.category)
+      ).length,
+      totalExperience: experience.length,
+      internshipCount: experience.filter(e => e.isInternship).length,
+      totalAchievements: experience.reduce((sum, exp) => sum + (exp.achievements?.length || 0), 0)
+    })
+    setSkillsSummary(fallbackSummary)
   }
+  setIsGeneratingSummary(false)
+}
 
   // 智能备选总结生成函数
   const generateIntelligentFallbackSummary = (skills: any[], experiences: Experience[], quantData: any) => {

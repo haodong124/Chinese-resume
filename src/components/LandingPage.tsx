@@ -165,22 +165,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <div className="space-y-8">
               <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                 <Zap className="h-4 w-4 mr-1" />
-                AI 智能简历助手
+                AI简历专家，专治写不出亮点
               </div>
               
               <div className="space-y-4">
                 <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
-                  您的最终选择，
+                  懂岗位，更懂你
                   <br />
                   <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    一站式专业级别的
+                    生成一份 HR 放不下的简历
                   </span>
-                  <br />
-                  简历制作工具
                 </h1>
                 
                 <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-                  总结您的核心竞争力，打造专业简历，助力职业发展。
+                  AI简历专家，专治写不出亮点。总结您的核心竞争力，打造专业简历，助力职业发展。
                 </p>
               </div>
 

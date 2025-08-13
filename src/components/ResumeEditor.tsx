@@ -1,14 +1,19 @@
 import React, { useState } from 'react'
-import { ArrowLeft, Download, Printer, FileText } from 'lucide-react'
+import { ArrowLeft, Download, Printer, FileText, Palette } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
-// 导入标准模板
+// 导入所有新模板
 import StandardTemplate from './templates/StandardTemplate'
+import EliteTemplate from './templates/EliteTemplate'
+import ModernTimelineTemplate from './templates/ModernTimelineTemplate'
+import MinimalBusinessTemplate from './templates/MinimalBusinessTemplate'
+import CreativeDuoToneTemplate from './templates/CreativeDuoToneTemplate'
+
 // 导入评价弹窗组件
 import FeedbackModal from './FeedbackModal'
 
-export type TemplateType = 'standard'
+export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone'
 
 export interface PersonalInfo {
   name: string
@@ -112,6 +117,40 @@ interface ResumeEditorProps {
   onBack?: () => void
 }
 
+// 新模板配置
+const TEMPLATE_CONFIG = {
+  'standard': {
+    name: '标准简历',
+    description: '经典排版，适合大多数行业',
+    component: StandardTemplate,
+    color: '#3B82F6'
+  },
+  'elite': {
+    name: '精英商务',
+    description: '专业蓝色主题，时间线设计，适合高级职位',
+    component: EliteTemplate,
+    color: '#1E40AF'
+  },
+  'modern-timeline': {
+    name: '现代时间线',
+    description: '渐变设计，时尚时间线布局，突出职业发展',
+    component: ModernTimelineTemplate,
+    color: '#667EEA'
+  },
+  'minimal-business': {
+    name: '简约商务',
+    description: '极简黑白设计，专注内容展示，适合传统行业',
+    component: MinimalBusinessTemplate,
+    color: '#000000'
+  },
+  'creative-duotone': {
+    name: '创意双色调',
+    description: '分割式设计，个性鲜明，适合创意类职位',
+    component: CreativeDuoToneTemplate,
+    color: '#1A202C'
+  }
+}
+
 const ResumeEditor: React.FC<ResumeEditorProps> = ({
   resumeData,
   setResumeData,
@@ -119,32 +158,56 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   onTemplateChange,
   onBack
 }) => {
+  // 模板选择器状态
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
+  
   // 评价弹窗状态
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
-  // 数据适配器 - 确保数据格式兼容模板
+  // 数据适配器 - 确保数据格式兼容所有模板
   const adaptDataForTemplate = (data: ResumeData): ResumeData => {
-    const adaptedExperience = data.experience.map(exp => ({
-      ...exp,
-      role: exp.position,
-    }))
-
-    return {
-      ...data,
-      experience: adaptedExperience,
+    // 确保所有必需字段都存在
+    const adaptedData: ResumeData = {
       personalInfo: {
-        ...data.personalInfo,
-        website: data.personalInfo.website || ''
-      }
+        name: data.personalInfo?.name || '',
+        email: data.personalInfo?.email || '',
+        phone: data.personalInfo?.phone || '',
+        location: data.personalInfo?.location || '',
+        title: data.personalInfo?.title || '',
+        summary: data.personalInfo?.summary || '',
+        website: data.personalInfo?.website || ''
+      },
+      education: data.education || [],
+      experience: (data.experience || []).map(exp => ({
+        ...exp,
+        role: exp.role || exp.position, // 确保 role 字段存在
+        achievements: exp.achievements || []
+      })),
+      projects: data.projects || [],
+      skills: data.skills || [],
+      certificates: data.certificates || [],
+      skillsSummary: data.skillsSummary || data.personalInfo?.summary || '',
+      achievements: data.achievements || [],
+      languages: data.languages || [],
+      industryAnalysis: data.industryAnalysis
     }
+
+    return adaptedData
   }
 
-  // 统一使用标准模板
+  // 渲染选中的模板
   const renderTemplate = () => {
     const adaptedData = adaptDataForTemplate(resumeData)
-    return <StandardTemplate resumeData={adaptedData} />
+    const TemplateComponent = TEMPLATE_CONFIG[selectedTemplate].component
+    return <TemplateComponent resumeData={adaptedData} isPreview={true} />
+  }
+
+  // 处理模板切换
+  const handleTemplateChange = (templateType: TemplateType) => {
+    onTemplateChange(templateType)
+    setShowTemplateSelector(false)
   }
 
   // 处理评价提交成功
@@ -223,7 +286,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         }
       }
       
-      const fileName = `${resumeData.personalInfo.name || '简历'}_${new Date().toLocaleDateString('zh-CN')}.pdf`
+      const templateName = TEMPLATE_CONFIG[selectedTemplate].name
+      const fileName = `${resumeData.personalInfo.name || '简历'}_${templateName}_${new Date().toLocaleDateString('zh-CN')}.pdf`
       pdf.save(fileName)
       
       document.body.removeChild(loadingToast)
@@ -290,13 +354,73 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">标准简历模板</span>
+              {/* 模板选择器 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                  className="flex items-center space-x-3 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: TEMPLATE_CONFIG[selectedTemplate].color }}
+                  ></div>
+                  <Palette className="h-4 w-4" />
+                  <span className="text-sm font-medium">{TEMPLATE_CONFIG[selectedTemplate].name}</span>
+                  <svg className={`h-4 w-4 transition-transform ${showTemplateSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showTemplateSelector && (
+                  <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-4 border-b border-gray-100">
+                      <h3 className="text-sm font-semibold text-gray-900">选择简历模板</h3>
+                      <p className="text-xs text-gray-600 mt-1">选择最适合您职业的模板风格</p>
+                    </div>
+                    <div className="p-2 max-h-80 overflow-y-auto">
+                      {Object.entries(TEMPLATE_CONFIG).map(([key, config]) => (
+                        <button
+                          key={key}
+                          onClick={() => handleTemplateChange(key as TemplateType)}
+                          className={`w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors ${
+                            selectedTemplate === key ? 'bg-blue-50 border border-blue-200' : ''
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className="flex items-center space-x-2 mt-1">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: config.color }}
+                              ></div>
+                              <div className={`w-3 h-3 rounded-full border-2 ${
+                                selectedTemplate === key ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                              }`}>
+                                {selectedTemplate === key && (
+                                  <div className="w-full h-full rounded-full bg-white scale-50"></div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <div className={`text-sm font-medium ${
+                                selectedTemplate === key ? 'text-blue-900' : 'text-gray-900'
+                              }`}>
+                                {config.name}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                {config.description}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
                 onClick={() => window.print()}
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition-colors"
+                className="flex items-center space-x-1 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
               >
                 <Printer className="h-4 w-4" />
                 <span>打印</span>
@@ -305,7 +429,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
               <button
                 onClick={handleExportPDF}
                 disabled={isExporting}
-                className={`flex items-center space-x-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   isExporting
                     ? 'bg-gray-400 cursor-not-allowed text-white'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -315,10 +439,10 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 <span>{isExporting ? '导出中...' : '导出PDF'}</span>
               </button>
               
-              {/* 手动触发评价按钮（开发测试用） */}
+              {/* 手动触发评价按钮 */}
               <button
                 onClick={() => setShowFeedbackModal(true)}
-                className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                className="text-sm text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded hover:bg-blue-50"
               >
                 分享反馈
               </button>
@@ -326,6 +450,14 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           </div>
         </div>
       </header>
+
+      {/* 点击空白区域关闭模板选择器 */}
+      {showTemplateSelector && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowTemplateSelector(false)}
+        ></div>
+      )}
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -335,13 +467,32 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           </div>
         </div>
         
-        {/* 使用提示 */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        {/* 模板信息展示 */}
+        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
-            <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div 
+              className="w-6 h-6 rounded-full mt-0.5 flex-shrink-0" 
+              style={{ backgroundColor: TEMPLATE_CONFIG[selectedTemplate].color }}
+            ></div>
             <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">简历已生成完成！</p>
-              <p>您可以点击"导出PDF"下载简历文件，或使用打印功能。导出完成后，我们会邀请您分享使用体验，帮助我们改进产品。</p>
+              <p className="font-semibold mb-1">当前模板：{TEMPLATE_CONFIG[selectedTemplate].name}</p>
+              <p className="text-blue-700">{TEMPLATE_CONFIG[selectedTemplate].description}</p>
+              <p className="text-blue-600 text-xs mt-2">💡 您可以点击上方的模板选择器切换其他风格，每种模板都有独特的设计特色</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* 使用提示 */}
+        <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <FileText className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-green-800">
+              <p className="font-semibold mb-1">✨ 简历已生成完成！</p>
+              <div className="text-green-700 space-y-1">
+                <p>• 点击"导出PDF"下载高质量简历文件</p>
+                <p>• 使用"打印"功能直接打印简历</p>
+                <p>• 导出完成后，我们会邀请您分享使用体验，帮助我们改进产品</p>
+              </div>
             </div>
           </div>
         </div>

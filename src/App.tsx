@@ -561,18 +561,6 @@ function App() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <StepIndicator />
-      <main className="flex-1">
-        {renderCurrentStep()}
-      </main>
-      {/* 添加环境变量调试面板 */}
-      <EnvDebugPanel />
-    </div>
-  )
-}
-
 return (
   <div className="min-h-screen bg-gray-50">
     <StepIndicator />

@@ -109,6 +109,191 @@ export type TemplateType = 'standard'
 
 type Step = 'landing' | 'collection' | 'skills' | 'template' | 'resume'
 
+// 环境变量调试组件
+const EnvDebugPanel = () => {
+  const [showDebug, setShowDebug] = useState(true)
+  
+  // 获取所有环境变量
+  const envInfo = {
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL || 'NOT_SET',
+    hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+    appUrl: import.meta.env.VITE_APP_URL || 'NOT_SET',
+    mode: import.meta.env.MODE,
+    isProd: import.meta.env.PROD,
+    isDev: import.meta.env.DEV,
+    baseUrl: import.meta.env.BASE_URL
+  }
+  
+  // 检查环境变量状态
+  const hasEnvVars = envInfo.supabaseUrl !== 'NOT_SET' && envInfo.hasSupabaseKey
+  
+  // 在控制台打印详细信息
+  useEffect(() => {
+    console.log('=== 环境变量调试信息 ===')
+    console.log('Supabase URL:', envInfo.supabaseUrl)
+    console.log('Has Supabase Key:', envInfo.hasSupabaseKey)
+    console.log('App URL:', envInfo.appUrl)
+    console.log('Mode:', envInfo.mode)
+    console.log('Is Production:', envInfo.isProd)
+    console.log('Is Development:', envInfo.isDev)
+    console.log('All VITE vars:', Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')))
+    console.log('========================')
+  }, [])
+  
+  if (!showDebug) {
+    return (
+      <button
+        onClick={() => setShowDebug(true)}
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          padding: '8px 16px',
+          background: hasEnvVars ? '#10b981' : '#ef4444',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '12px',
+          zIndex: 9999,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}
+      >
+        {hasEnvVars ? '✓ 环境变量已配置' : '⚠ 环境变量未配置'}
+      </button>
+    )
+  }
+  
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 20,
+      right: 20,
+      width: '320px',
+      background: 'white',
+      border: `2px solid ${hasEnvVars ? '#10b981' : '#ef4444'}`,
+      borderRadius: '8px',
+      padding: '12px',
+      zIndex: 9999,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      fontSize: '12px',
+      fontFamily: 'monospace'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px',
+        paddingBottom: '8px',
+        borderBottom: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
+          🔧 环境变量调试
+        </h3>
+        <button
+          onClick={() => setShowDebug(false)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '16px',
+            color: '#6b7280'
+          }}
+        >
+          ×
+        </button>
+      </div>
+      
+      <div style={{ display: 'grid', gap: '6px' }}>
+        <div style={{ 
+          padding: '6px',
+          background: hasEnvVars ? '#d1fae5' : '#fee2e2',
+          borderRadius: '4px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          color: hasEnvVars ? '#065f46' : '#991b1b'
+        }}>
+          状态: {hasEnvVars ? '✅ 已配置' : '❌ 未配置'}
+        </div>
+        
+        <div style={{ display: 'grid', gap: '4px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#6b7280' }}>SUPABASE_URL:</span>
+            <span style={{ 
+              color: envInfo.supabaseUrl !== 'NOT_SET' ? '#10b981' : '#ef4444',
+              fontWeight: 'bold'
+            }}>
+              {envInfo.supabaseUrl !== 'NOT_SET' ? '已设置' : '未设置'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#6b7280' }}>SUPABASE_KEY:</span>
+            <span style={{ 
+              color: envInfo.hasSupabaseKey ? '#10b981' : '#ef4444',
+              fontWeight: 'bold'
+            }}>
+              {envInfo.hasSupabaseKey ? '已设置' : '未设置'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#6b7280' }}>APP_URL:</span>
+            <span style={{ 
+              color: envInfo.appUrl !== 'NOT_SET' ? '#10b981' : '#ef4444',
+              fontWeight: 'bold'
+            }}>
+              {envInfo.appUrl !== 'NOT_SET' ? '已设置' : '未设置'}
+            </span>
+          </div>
+          
+          <div style={{ 
+            marginTop: '8px',
+            paddingTop: '8px',
+            borderTop: '1px solid #e5e7eb'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#6b7280' }}>环境:</span>
+              <span>{envInfo.mode}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#6b7280' }}>生产模式:</span>
+              <span>{envInfo.isProd ? '是' : '否'}</span>
+            </div>
+          </div>
+        </div>
+        
+        {envInfo.supabaseUrl !== 'NOT_SET' && (
+          <div style={{
+            marginTop: '8px',
+            padding: '6px',
+            background: '#f3f4f6',
+            borderRadius: '4px',
+            fontSize: '10px',
+            wordBreak: 'break-all'
+          }}>
+            URL: {envInfo.supabaseUrl.substring(0, 30)}...
+          </div>
+        )}
+        
+        {!hasEnvVars && (
+          <div style={{
+            marginTop: '8px',
+            padding: '8px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '4px',
+            fontSize: '11px',
+            color: '#7f1d1d'
+          }}>
+            ⚠️ 请在 Netlify 后台配置环境变量，然后重新部署
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [currentStep, setCurrentStep] = useState<Step>('landing')
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('standard')
@@ -381,6 +566,8 @@ function App() {
       <main className="flex-1">
         {renderCurrentStep()}
       </main>
+      {/* 添加环境变量调试面板 */}
+      <EnvDebugPanel />
     </div>
   )
 }

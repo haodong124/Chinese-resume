@@ -6,6 +6,7 @@ import ResumeEditor from './components/ResumeEditor'
 import AdvancedTemplateSelector from './components/AdvancedTemplateSelector'
 import { saveToLocalStorage, loadFromLocalStorage } from './utils/storage'
 import { FileText, Save, RefreshCw, Home } from 'lucide-react'
+import SupabaseTest from './components/SupabaseTest'
 
 // 定义数据类型
 export interface PersonalInfo {
@@ -572,4 +573,16 @@ function App() {
   )
 }
 
+return (
+  <div className="min-h-screen bg-gray-50">
+    <StepIndicator />
+    <main className="flex-1">
+      {renderCurrentStep()}
+    </main>
+    {/* 环境变量调试面板 */}
+    <EnvDebugPanel />
+    {/* Supabase 测试组件 */}
+    <SupabaseTest />
+  </div>
+)
 export default App

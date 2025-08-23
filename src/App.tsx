@@ -573,4 +573,5 @@ return (
     <SupabaseTest />
   </div>
 )
+  
 export default App

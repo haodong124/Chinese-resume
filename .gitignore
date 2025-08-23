@@ -1,0 +1,25 @@
+# 依赖
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# 环境变量（最重要的部分）
+.env
+.env.local
+.env.production
+.env*.local
+
+# 编辑器
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+
+# Netlify
+.netlify/
+
+# 日志
+npm-debug.log*
+yarn-debug.log*

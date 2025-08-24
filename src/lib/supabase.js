@@ -90,14 +90,17 @@ export async function generateShareLink(resumeId) {
   if (!supabase) return null
   
   try {
-    // 生成唯一的分享码
-    const shareCode = Math.random().toString(36).substring(2, 10)
+    // 生成更长的唯一分享码，避免冲突
+    const timestamp = Date.now().toString(36)
+    const randomStr = Math.random().toString(36).substring(2, 10)
+    const shareCode = `${timestamp}${randomStr}`
     
     const { data, error } = await supabase
       .from('share_links')
       .insert([{
         resume_id: resumeId,
-        share_code: shareCode
+        share_code: shareCode,
+        click_count: 0
       }])
       .select()
       .single()
@@ -109,7 +112,7 @@ export async function generateShareLink(resumeId) {
     const shareUrl = `${baseUrl}/share/${shareCode}`
     
     console.log('✅ 分享链接生成:', shareUrl)
-    return { ...data, shareUrl }
+    return { ...data, shareUrl, shareCode }
   } catch (error) {
     console.error('❌ 生成分享链接失败:', error)
     return null
@@ -130,7 +133,7 @@ export async function recordShareClick(shareCode) {
       .single()
     
     if (linkError || !shareLink) {
-      console.error('无效的分享链接')
+      console.error('无效的分享链接:', linkError)
       return null
     }
     
@@ -138,33 +141,41 @@ export async function recordShareClick(shareCode) {
     const { error: clickError } = await supabase
       .from('share_clicks')
       .insert([{
-        share_link_id: shareLink.id
+        share_link_id: shareLink.id,
+        visitor_ip: null, // 可以在后端获取
+        is_valid: true
       }])
     
-    if (clickError) throw clickError
+    if (clickError) {
+      console.error('记录点击失败:', clickError)
+      // 继续执行，不影响计数
+    }
     
     // 更新点击计数
+    const newShareClickCount = (shareLink.click_count || 0) + 1
     await supabase
       .from('share_links')
-      .update({ click_count: shareLink.click_count + 1 })
+      .update({ click_count: newShareClickCount })
       .eq('id', shareLink.id)
     
     // 更新简历的实际点击数
-    const newClickCount = shareLink.resumes.actual_clicks + 1
+    const newResumeClickCount = (shareLink.resumes?.actual_clicks || 0) + 1
+    const requiredClicks = shareLink.resumes?.required_clicks || 3
+    
     await supabase
       .from('resumes')
       .update({ 
-        actual_clicks: newClickCount,
-        export_unlocked: newClickCount >= shareLink.resumes.required_clicks
+        actual_clicks: newResumeClickCount,
+        export_unlocked: newResumeClickCount >= requiredClicks
       })
       .eq('id', shareLink.resume_id)
     
-    console.log(`✅ 记录点击成功，当前点击数: ${newClickCount}`)
+    console.log(`✅ 记录点击成功，当前点击数: ${newResumeClickCount}/${requiredClicks}`)
     
     return {
-      currentClicks: newClickCount,
-      requiredClicks: shareLink.resumes.required_clicks,
-      isUnlocked: newClickCount >= shareLink.resumes.required_clicks
+      currentClicks: newResumeClickCount,
+      requiredClicks: requiredClicks,
+      isUnlocked: newResumeClickCount >= requiredClicks
     }
   } catch (error) {
     console.error('❌ 记录点击失败:', error)
@@ -187,9 +198,9 @@ export async function checkExportPermission(resumeId) {
     if (error) throw error
     
     return {
-      canExport: data.export_unlocked,
-      currentClicks: data.actual_clicks,
-      requiredClicks: data.required_clicks
+      canExport: data.export_unlocked || false,
+      currentClicks: data.actual_clicks || 0,
+      requiredClicks: data.required_clicks || 3
     }
   } catch (error) {
     console.error('检查权限失败:', error)

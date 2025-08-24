@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Download, Printer, FileText, Palette } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -175,21 +175,17 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [resumeId, setResumeId] = useState<string | null>(null)
   const [canExport, setCanExport] = useState(false)
   const [isInitializing, setIsInitializing] = useState(false)
+  const [supabaseEnabled, setSupabaseEnabled] = useState(false)
+  const [currentClicks, setCurrentClicks] = useState(0)
+  const [requiredClicks, setRequiredClicks] = useState(3)
 
-  // 组件加载时初始化用户和简历
-  useEffect(() => {
-    initializeUserAndResume()
-  }, [resumeData.personalInfo.email]) // 当邮箱改变时重新初始化
-
-  const initializeUserAndResume = async () => {
-    // 如果没有邮箱，不初始化
-    if (!resumeData.personalInfo.email) {
-      console.log('没有邮箱，跳过初始化')
+  // 初始化用户和简历
+  const initializeUserAndResume = useCallback(async () => {
+    // 如果没有邮箱或正在初始化，跳过
+    if (!resumeData.personalInfo.email || isInitializing) {
+      console.log('跳过初始化：', !resumeData.personalInfo.email ? '没有邮箱' : '正在初始化')
       return
     }
-
-    // 如果正在初始化，避免重复
-    if (isInitializing) return
     
     setIsInitializing(true)
     
@@ -205,6 +201,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       
       if (user) {
         console.log('用户已创建/找到:', user.id)
+        setSupabaseEnabled(true)
         
         // 保存简历
         const resume = await saveResume(user.id, resumeData, selectedTemplate)
@@ -216,22 +213,76 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
           const permission = await checkExportPermission(resume.id)
           if (permission) {
             setCanExport(permission.canExport)
-            console.log('导出权限:', permission.canExport ? '已解锁' : '需要分享解锁')
+            setCurrentClicks(permission.currentClicks || 0)
+            setRequiredClicks(permission.requiredClicks || 3)
+            console.log('导出权限状态:', permission)
           }
         }
+      } else {
+        // Supabase 不可用，默认允许导出
+        console.log('Supabase 不可用，启用默认导出')
+        setCanExport(true)
+        setSupabaseEnabled(false)
       }
     } catch (error) {
       console.error('初始化失败:', error)
-      // 如果 Supabase 不可用，默认允许导出
+      // 如果初始化失败，默认允许导出
       setCanExport(true)
+      setSupabaseEnabled(false)
     } finally {
       setIsInitializing(false)
     }
-  }
+  }, [resumeData.personalInfo.email, resumeData.personalInfo.name, resumeData.personalInfo.phone, resumeData, selectedTemplate, isInitializing])
 
-  // 数据适配器 - 确保数据格式兼容所有模板
+  // 组件加载时初始化
+  useEffect(() => {
+    initializeUserAndResume()
+  }, []) // 只在组件挂载时执行一次
+
+  // 当邮箱改变时重新初始化
+  useEffect(() => {
+    if (resumeData.personalInfo.email) {
+      initializeUserAndResume()
+    }
+  }, [resumeData.personalInfo.email])
+
+  // 定期检查权限状态（当弹窗打开时）
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    
+    if (showShareModal && resumeId) {
+      // 每3秒检查一次权限状态
+      interval = setInterval(async () => {
+        const permission = await checkExportPermission(resumeId)
+        if (permission) {
+          setCurrentClicks(permission.currentClicks || 0)
+          setCanExport(permission.canExport)
+          
+          // 如果已解锁，关闭弹窗
+          if (permission.canExport) {
+            setShowShareModal(false)
+            // 显示成功提示
+            const successToast = document.createElement('div')
+            successToast.innerHTML = '🎉 恭喜！PDF导出已解锁，您现在可以免费导出了！'
+            successToast.style.cssText = `
+              position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+              background: #10b981; color: white; padding: 16px 24px; border-radius: 8px;
+              z-index: 9999; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `
+            document.body.appendChild(successToast)
+            setTimeout(() => document.body.removeChild(successToast), 5000)
+          }
+        }
+      }, 3000)
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [showShareModal, resumeId])
+
+  // 数据适配器
   const adaptDataForTemplate = (data: ResumeData): ResumeData => {
-    // 确保所有必需字段都存在
     const adaptedData: ResumeData = {
       personalInfo: {
         name: data.personalInfo?.name || '',
@@ -245,7 +296,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
       education: data.education || [],
       experience: (data.experience || []).map(exp => ({
         ...exp,
-        role: exp.role || exp.position, // 确保 role 字段存在
+        role: exp.role || exp.position,
         achievements: exp.achievements || []
       })),
       projects: data.projects || [],
@@ -397,14 +448,22 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
 
   // 处理导出PDF（检查分享解锁）
   const handleExportPDF = async () => {
-    // 检查是否需要分享解锁
-    if (!canExport && resumeId) {
+    console.log('点击导出，当前状态:', {
+      supabaseEnabled,
+      canExport,
+      resumeId,
+      currentClicks,
+      requiredClicks
+    })
+    
+    // 如果 Supabase 启用且未解锁，显示分享弹窗
+    if (supabaseEnabled && !canExport && resumeId) {
       console.log('需要分享解锁，显示分享弹窗')
       setShowShareModal(true)
       return
     }
     
-    // 如果已解锁或没有resumeId（Supabase不可用），直接导出
+    // 否则直接导出
     await actualExportPDF()
   }
 
@@ -414,6 +473,18 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setShowShareModal(false)
     // 解锁后自动导出
     actualExportPDF()
+  }
+
+  // 手动刷新权限状态
+  const refreshPermission = async () => {
+    if (resumeId) {
+      const permission = await checkExportPermission(resumeId)
+      if (permission) {
+        setCanExport(permission.canExport)
+        setCurrentClicks(permission.currentClicks || 0)
+        setRequiredClicks(permission.requiredClicks || 3)
+      }
+    }
   }
 
   return (
@@ -517,24 +588,26 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   isExporting
                     ? 'bg-gray-400 cursor-not-allowed text-white'
-                    : canExport
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                    : supabaseEnabled && !canExport
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
                 <Download className={`h-4 w-4 ${isExporting ? 'animate-spin' : ''}`} />
                 <span>
-                  {isExporting ? '导出中...' : canExport ? '导出PDF' : '分享解锁导出'}
+                  {isExporting ? '导出中...' : supabaseEnabled && !canExport ? '分享解锁导出' : '导出PDF'}
                 </span>
               </button>
               
-              {/* 手动触发评价按钮 */}
-              <button
-                onClick={() => setShowFeedbackModal(true)}
-                className="text-sm text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded hover:bg-blue-50"
-              >
-                分享反馈
-              </button>
+              {/* 手动触发分享解锁（测试用） */}
+              {supabaseEnabled && !canExport && resumeId && (
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="text-sm text-orange-600 hover:text-orange-800 transition-colors px-2 py-1 rounded hover:bg-orange-50"
+                >
+                  立即分享解锁
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -557,19 +630,37 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         </div>
         
         {/* 分享解锁提示（如果需要） */}
-        {!canExport && resumeId && (
+        {supabaseEnabled && !canExport && resumeId && (
           <div className="mt-6 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-4">
             <div className="flex items-start space-x-3">
               <div className="text-2xl">🔐</div>
-              <div className="text-sm text-orange-800">
-                <p className="font-semibold mb-1">分享解锁高清PDF导出</p>
-                <p className="text-orange-700">分享您的简历链接给朋友，获得3次点击即可永久解锁PDF导出功能！</p>
-                <button
-                  onClick={() => setShowShareModal(true)}
-                  className="mt-2 text-orange-600 hover:text-orange-800 font-medium underline"
-                >
-                  立即分享解锁 →
-                </button>
+              <div className="flex-1">
+                <div className="text-sm text-orange-800">
+                  <p className="font-semibold mb-1">分享解锁高清PDF导出</p>
+                  <p className="text-orange-700 mb-2">
+                    分享您的简历链接给朋友，获得3次点击即可永久解锁PDF导出功能！
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">当前进度：</span>
+                      <span className="text-orange-600 font-bold">{currentClicks}/{requiredClicks}</span> 次点击
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={refreshPermission}
+                        className="text-xs text-orange-600 hover:text-orange-800 font-medium underline"
+                      >
+                        刷新状态
+                      </button>
+                      <button
+                        onClick={() => setShowShareModal(true)}
+                        className="text-xs bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600"
+                      >
+                        立即分享
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -4,52 +4,55 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 let supabaseClient = null
 
-// 动态加载 Supabase（避免构建错误）
+// 获取 Supabase 客户端
 export async function getSupabase() {
   if (!supabaseClient && supabaseUrl && supabaseAnonKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js')
       supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
-      console.log('Supabase 初始化成功')
+      console.log('✅ Supabase 初始化成功')
     } catch (error) {
-      console.error('Supabase 初始化失败:', error)
+      console.error('❌ Supabase 初始化失败:', error)
     }
   }
   return supabaseClient
 }
 
-// 保存用户信息
-export async function saveUser(userInfo) {
+// 查找或创建用户
+export async function findOrCreateUser(email, name, phone) {
   const supabase = await getSupabase()
   if (!supabase) return null
   
   try {
-    // 先尝试查找用户
-    const { data: existingUser } = await supabase
+    // 先查找用户
+    let { data: existingUser, error: findError } = await supabase
       .from('users')
-      .select()
-      .eq('email', userInfo.email)
+      .select('*')
+      .eq('email', email)
       .single()
     
     if (existingUser) {
+      console.log('找到现有用户:', existingUser.id)
       return existingUser
     }
     
     // 创建新用户
-    const { data, error } = await supabase
+    const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert([{
-        email: userInfo.email,
-        name: userInfo.name,
-        phone: userInfo.phone
+        email: email,
+        name: name,
+        phone: phone
       }])
       .select()
       .single()
     
-    if (error) throw error
-    return data
+    if (createError) throw createError
+    
+    console.log('创建新用户:', newUser.id)
+    return newUser
   } catch (error) {
-    console.error('保存用户失败:', error)
+    console.error('用户操作失败:', error)
     return null
   }
 }
@@ -65,16 +68,18 @@ export async function saveResume(userId, resumeData, templateType) {
       .insert([{
         user_id: userId,
         resume_data: resumeData,
-        template_type: templateType || 'standard'
+        template_type: templateType || 'standard',
+        required_clicks: 3 // 需要3次分享点击
       }])
       .select()
       .single()
     
     if (error) throw error
-    console.log('简历保存成功:', data.id)
+    
+    console.log('✅ 简历保存成功:', data.id)
     return data
   } catch (error) {
-    console.error('保存简历失败:', error)
+    console.error('❌ 保存简历失败:', error)
     return null
   }
 }
@@ -85,7 +90,7 @@ export async function generateShareLink(resumeId) {
   if (!supabase) return null
   
   try {
-    // 生成随机分享码
+    // 生成唯一的分享码
     const shareCode = Math.random().toString(36).substring(2, 10)
     
     const { data, error } = await supabase
@@ -99,10 +104,70 @@ export async function generateShareLink(resumeId) {
     
     if (error) throw error
     
-    const shareUrl = `${import.meta.env.VITE_APP_URL}/share/${shareCode}`
+    // 构建分享链接
+    const baseUrl = window.location.origin
+    const shareUrl = `${baseUrl}/share/${shareCode}`
+    
+    console.log('✅ 分享链接生成:', shareUrl)
     return { ...data, shareUrl }
   } catch (error) {
-    console.error('生成分享链接失败:', error)
+    console.error('❌ 生成分享链接失败:', error)
+    return null
+  }
+}
+
+// 记录分享点击
+export async function recordShareClick(shareCode) {
+  const supabase = await getSupabase()
+  if (!supabase) return null
+  
+  try {
+    // 获取分享链接信息
+    const { data: shareLink, error: linkError } = await supabase
+      .from('share_links')
+      .select('*, resumes(*)')
+      .eq('share_code', shareCode)
+      .single()
+    
+    if (linkError || !shareLink) {
+      console.error('无效的分享链接')
+      return null
+    }
+    
+    // 记录点击
+    const { error: clickError } = await supabase
+      .from('share_clicks')
+      .insert([{
+        share_link_id: shareLink.id
+      }])
+    
+    if (clickError) throw clickError
+    
+    // 更新点击计数
+    await supabase
+      .from('share_links')
+      .update({ click_count: shareLink.click_count + 1 })
+      .eq('id', shareLink.id)
+    
+    // 更新简历的实际点击数
+    const newClickCount = shareLink.resumes.actual_clicks + 1
+    await supabase
+      .from('resumes')
+      .update({ 
+        actual_clicks: newClickCount,
+        export_unlocked: newClickCount >= shareLink.resumes.required_clicks
+      })
+      .eq('id', shareLink.resume_id)
+    
+    console.log(`✅ 记录点击成功，当前点击数: ${newClickCount}`)
+    
+    return {
+      currentClicks: newClickCount,
+      requiredClicks: shareLink.resumes.required_clicks,
+      isUnlocked: newClickCount >= shareLink.resumes.required_clicks
+    }
+  } catch (error) {
+    console.error('❌ 记录点击失败:', error)
     return null
   }
 }
@@ -110,7 +175,7 @@ export async function generateShareLink(resumeId) {
 // 检查导出权限
 export async function checkExportPermission(resumeId) {
   const supabase = await getSupabase()
-  if (!supabase) return { canExport: true } // 如果 Supabase 不可用，默认允许导出
+  if (!supabase) return { canExport: true, currentClicks: 0, requiredClicks: 3 }
   
   try {
     const { data, error } = await supabase
@@ -122,12 +187,13 @@ export async function checkExportPermission(resumeId) {
     if (error) throw error
     
     return {
-      canExport: data.export_unlocked || data.actual_clicks >= data.required_clicks,
+      canExport: data.export_unlocked,
       currentClicks: data.actual_clicks,
       requiredClicks: data.required_clicks
     }
   } catch (error) {
     console.error('检查权限失败:', error)
-    return { canExport: true } // 出错时默认允许
+    // 出错时默认允许导出，避免影响用户体验
+    return { canExport: true, currentClicks: 0, requiredClicks: 3 }
   }
 }

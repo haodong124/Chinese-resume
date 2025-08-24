@@ -4,6 +4,7 @@ import InformationCollection from './components/InformationCollection'
 import EnhancedAISkillRecommendation from './components/EnhancedAISkillRecommendation'
 import ResumeEditor from './components/ResumeEditor'
 import AdvancedTemplateSelector from './components/AdvancedTemplateSelector'
+import SharePage from './components/SharePage'
 import { saveToLocalStorage, loadFromLocalStorage } from './utils/storage'
 import { FileText, Save, RefreshCw, Home } from 'lucide-react'
 import SupabaseTest from './components/SupabaseTest'
@@ -112,7 +113,7 @@ type Step = 'landing' | 'collection' | 'skills' | 'template' | 'resume'
 
 // 环境变量调试组件
 const EnvDebugPanel = () => {
-  const [showDebug, setShowDebug] = useState(true)
+  const [showDebug, setShowDebug] = useState(false) // 默认关闭
   
   // 获取所有环境变量
   const envInfo = {
@@ -142,27 +143,7 @@ const EnvDebugPanel = () => {
   }, [])
   
   if (!showDebug) {
-    return (
-      <button
-        onClick={() => setShowDebug(true)}
-        style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          padding: '8px 16px',
-          background: hasEnvVars ? '#10b981' : '#ef4444',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          fontSize: '12px',
-          zIndex: 9999,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-        }}
-      >
-        {hasEnvVars ? '✓ 环境变量已配置' : '⚠ 环境变量未配置'}
-      </button>
-    )
+    return null // 完全隐藏，不显示按钮
   }
   
   return (
@@ -296,6 +277,14 @@ const EnvDebugPanel = () => {
 }
 
 function App() {
+  // 检查是否是分享链接
+  const isShareLink = window.location.pathname.startsWith('/share/')
+  
+  // 如果是分享链接，显示分享页面
+  if (isShareLink) {
+    return <SharePage />
+  }
+
   const [currentStep, setCurrentStep] = useState<Step>('landing')
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('standard')
   
@@ -561,18 +550,17 @@ function App() {
     )
   }
 
-return (
-  <div className="min-h-screen bg-gray-50">
-    <StepIndicator />
-    <main className="flex-1">
-      {renderCurrentStep()}
-    </main>
-    {/* 环境变量调试面板 */}
-    <EnvDebugPanel />
-    {/* Supabase 测试组件 */}
-    <SupabaseTest />
-  </div>
-)
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <StepIndicator />
+      <main className="flex-1">
+        {renderCurrentStep()}
+      </main>
+      {/* 环境变量调试面板 - 默认关闭 */}
+      <EnvDebugPanel />
+      {/* 移除 SupabaseTest 组件 */}
+    </div>
+  )
 }
 
 export default App

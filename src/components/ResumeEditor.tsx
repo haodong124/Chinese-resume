@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Download, Printer, FileText, Palette } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -12,6 +12,10 @@ import CreativeDuoToneTemplate from './templates/CreativeDuoToneTemplate'
 
 // 导入评价弹窗组件
 import FeedbackModal from './FeedbackModal'
+
+// 导入分享解锁组件和服务
+import ShareUnlockModal from './ShareUnlockModal'
+import { findOrCreateUser, saveResume, checkExportPermission } from '../lib/supabase'
 
 export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone'
 
@@ -166,6 +170,65 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
+  // 分享解锁相关状态
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [resumeId, setResumeId] = useState<string | null>(null)
+  const [canExport, setCanExport] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(false)
+
+  // 组件加载时初始化用户和简历
+  useEffect(() => {
+    initializeUserAndResume()
+  }, [resumeData.personalInfo.email]) // 当邮箱改变时重新初始化
+
+  const initializeUserAndResume = async () => {
+    // 如果没有邮箱，不初始化
+    if (!resumeData.personalInfo.email) {
+      console.log('没有邮箱，跳过初始化')
+      return
+    }
+
+    // 如果正在初始化，避免重复
+    if (isInitializing) return
+    
+    setIsInitializing(true)
+    
+    try {
+      console.log('开始初始化用户和简历...')
+      
+      // 创建或获取用户
+      const user = await findOrCreateUser(
+        resumeData.personalInfo.email,
+        resumeData.personalInfo.name,
+        resumeData.personalInfo.phone
+      )
+      
+      if (user) {
+        console.log('用户已创建/找到:', user.id)
+        
+        // 保存简历
+        const resume = await saveResume(user.id, resumeData, selectedTemplate)
+        if (resume) {
+          console.log('简历已保存:', resume.id)
+          setResumeId(resume.id)
+          
+          // 检查导出权限
+          const permission = await checkExportPermission(resume.id)
+          if (permission) {
+            setCanExport(permission.canExport)
+            console.log('导出权限:', permission.canExport ? '已解锁' : '需要分享解锁')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('初始化失败:', error)
+      // 如果 Supabase 不可用，默认允许导出
+      setCanExport(true)
+    } finally {
+      setIsInitializing(false)
+    }
+  }
+
   // 数据适配器 - 确保数据格式兼容所有模板
   const adaptDataForTemplate = (data: ResumeData): ResumeData => {
     // 确保所有必需字段都存在
@@ -216,7 +279,8 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     setShowFeedbackModal(false)
   }
 
-  const handleExportPDF = async () => {
+  // 实际的PDF导出函数
+  const actualExportPDF = async () => {
     const element = document.querySelector('.resume-preview') as HTMLElement
     if (!element) {
       alert('找不到简历预览区域，请刷新页面重试')
@@ -331,6 +395,27 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
     }
   }
 
+  // 处理导出PDF（检查分享解锁）
+  const handleExportPDF = async () => {
+    // 检查是否需要分享解锁
+    if (!canExport && resumeId) {
+      console.log('需要分享解锁，显示分享弹窗')
+      setShowShareModal(true)
+      return
+    }
+    
+    // 如果已解锁或没有resumeId（Supabase不可用），直接导出
+    await actualExportPDF()
+  }
+
+  // 处理分享解锁成功
+  const handleShareUnlocked = () => {
+    setCanExport(true)
+    setShowShareModal(false)
+    // 解锁后自动导出
+    actualExportPDF()
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -432,11 +517,15 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   isExporting
                     ? 'bg-gray-400 cursor-not-allowed text-white'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    : canExport
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
                 }`}
               >
                 <Download className={`h-4 w-4 ${isExporting ? 'animate-spin' : ''}`} />
-                <span>{isExporting ? '导出中...' : '导出PDF'}</span>
+                <span>
+                  {isExporting ? '导出中...' : canExport ? '导出PDF' : '分享解锁导出'}
+                </span>
               </button>
               
               {/* 手动触发评价按钮 */}
@@ -466,6 +555,25 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
             {renderTemplate()}
           </div>
         </div>
+        
+        {/* 分享解锁提示（如果需要） */}
+        {!canExport && resumeId && (
+          <div className="mt-6 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <div className="text-2xl">🔐</div>
+              <div className="text-sm text-orange-800">
+                <p className="font-semibold mb-1">分享解锁高清PDF导出</p>
+                <p className="text-orange-700">分享您的简历链接给朋友，获得3次点击即可永久解锁PDF导出功能！</p>
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="mt-2 text-orange-600 hover:text-orange-800 font-medium underline"
+                >
+                  立即分享解锁 →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* 模板信息展示 */}
         <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
@@ -504,6 +612,16 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({
         onClose={() => setShowFeedbackModal(false)}
         onSubmitted={handleFeedbackSubmitted}
       />
+
+      {/* 分享解锁弹窗 */}
+      {showShareModal && (
+        <ShareUnlockModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          resumeId={resumeId}
+          onUnlocked={handleShareUnlocked}
+        />
+      )}
     </div>
   )
 }

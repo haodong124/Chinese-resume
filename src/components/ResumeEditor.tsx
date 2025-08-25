@@ -3,13 +3,14 @@ import { ArrowLeft, Download, Printer, FileText, Palette } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
-// 导入所有新模板
+// 导入所有模板
 import StandardTemplate from './templates/StandardTemplate'
 import EliteTemplate from './templates/EliteTemplate'
 import ModernTimelineTemplate from './templates/ModernTimelineTemplate'
 import MinimalBusinessTemplate from './templates/MinimalBusinessTemplate'
 import CreativeDuoToneTemplate from './templates/CreativeDuoToneTemplate'
 import CleanProfessionalTemplate from './templates/CleanProfessionalTemplate'
+import AmericanBusinessTemplate from './templates/AmericanBusinessTemplate'
 
 // 导入评价弹窗组件
 import FeedbackModal from './FeedbackModal'
@@ -18,7 +19,7 @@ import FeedbackModal from './FeedbackModal'
 import ShareUnlockModal from './ShareUnlockModal'
 import { findOrCreateUser, saveResume, checkExportPermission } from '../lib/supabase'
 
-export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone' | 'clean-professional'
+export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone' | 'clean-professional' | 'american-business'
 
 export interface PersonalInfo {
   name: string
@@ -122,7 +123,7 @@ interface ResumeEditorProps {
   onBack?: () => void
 }
 
-// 新模板配置
+// 模板配置
 const TEMPLATE_CONFIG = {
   'standard': {
     name: '标准简历',
@@ -159,6 +160,12 @@ const TEMPLATE_CONFIG = {
     description: '经典黑白设计，清晰排版，适合所有行业',
     component: CleanProfessionalTemplate,
     color: '#22c55e'
+  },
+  'american-business': {
+    name: '美式商务',
+    description: '经典美式简历风格，红色强调，适合外企和国际化岗位',
+    component: AmericanBusinessTemplate,
+    color: '#dc2626'
   }
 }
 

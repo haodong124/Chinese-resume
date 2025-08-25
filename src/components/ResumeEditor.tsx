@@ -9,6 +9,7 @@ import EliteTemplate from './templates/EliteTemplate'
 import ModernTimelineTemplate from './templates/ModernTimelineTemplate'
 import MinimalBusinessTemplate from './templates/MinimalBusinessTemplate'
 import CreativeDuoToneTemplate from './templates/CreativeDuoToneTemplate'
+import CleanProfessionalTemplate from './templates/CleanProfessionalTemplate'
 
 // 导入评价弹窗组件
 import FeedbackModal from './FeedbackModal'
@@ -17,7 +18,7 @@ import FeedbackModal from './FeedbackModal'
 import ShareUnlockModal from './ShareUnlockModal'
 import { findOrCreateUser, saveResume, checkExportPermission } from '../lib/supabase'
 
-export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone'
+export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone' | 'clean-professional'
 
 export interface PersonalInfo {
   name: string
@@ -152,6 +153,12 @@ const TEMPLATE_CONFIG = {
     description: '分割式设计，个性鲜明，适合创意类职位',
     component: CreativeDuoToneTemplate,
     color: '#1A202C'
+  },
+  'clean-professional': {
+    name: '简洁专业',
+    description: '经典黑白设计，清晰排版，适合所有行业',
+    component: CleanProfessionalTemplate,
+    color: '#22c55e'
   }
 }
 

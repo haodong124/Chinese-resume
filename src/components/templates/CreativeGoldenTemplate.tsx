@@ -92,57 +92,165 @@ interface TemplateProps {
 const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = false }) => {
   const { personalInfo, experience, education, skills, projects, certificates, skillsSummary } = resumeData
 
-  // 技能分组
-  const getSkillsByCategory = () => {
-    const categorized = {
-      webTech: [] as string[],
-      frameworks: [] as string[],
-      tools: [] as string[]
-    }
+  // 判断是否有工作或项目经历
+  const hasWorkOrProjects = (experience && experience.length > 0) || (projects && projects.length > 0)
+
+  // 技能分组处理 - 改进版
+  const formatSkillsForDisplay = () => {
+    if (!skills || skills.length === 0) return {}
     
-    if (skills && skills.length > 0) {
-      skills.forEach(skill => {
-        if (skill.category?.includes('技术') || 
-            skill.category?.includes('语言') ||
-            skill.category?.includes('前端')) {
-          categorized.webTech.push(skill.name)
-        } else if (skill.category?.includes('框架') || 
-                   skill.category?.includes('库')) {
-          categorized.frameworks.push(skill.name)
-        } else {
-          categorized.tools.push(skill.name)
-        }
+    const groupedSkills = skills.reduce((acc, skill) => {
+      const category = skill.category || '专业技能'
+      if (!acc[category]) acc[category] = []
+      
+      acc[category].push({
+        name: skill.name,
+        description: skill.description || '',
+        level: skill.level
       })
-    }
-    
-    return categorized
+      return acc
+    }, {} as Record<string, Array<{name: string, description: string, level: string}>>)
+
+    return groupedSkills
   }
 
-  const skillCategories = getSkillsByCategory()
+  const skillGroups = formatSkillsForDisplay()
 
-  // 获取技能等级
-  const getSkillLevel = (category: string) => {
-    if (!skills || skills.length === 0) return '熟练'
-    
-    const categorySkills = skills.filter(skill => {
-      if (category === 'webTech') {
-        return skill.category?.includes('技术') || skill.category?.includes('语言')
-      } else if (category === 'frameworks') {
-        return skill.category?.includes('框架')
-      } else {
-        return true
-      }
-    })
-    
-    if (categorySkills.length === 0) return '熟练'
-    
-    const hasExpert = categorySkills.some(s => s.level === 'expert')
-    const hasProficient = categorySkills.some(s => s.level === 'proficient')
-    
-    if (hasExpert) return '精通'
-    if (hasProficient) return '熟练'
-    return '了解'
-  }
+  // 技能展示组件
+  const SkillsSection = () => (
+    <section style={{ marginBottom: '25px' }}>
+      <h2 style={{ 
+        fontSize: '12px', 
+        fontWeight: 'bold', 
+        color: '#d97706',
+        marginBottom: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
+      }}>
+        <span style={{ fontSize: '8px' }}>○</span> 技能专长 <span style={{ fontSize: '8px' }}>○</span>
+      </h2>
+      
+      {Object.entries(skillGroups).map(([category, categorySkills], index) => (
+        <div key={category} style={{ 
+          marginBottom: index < Object.keys(skillGroups).length - 1 ? '15px' : '0' 
+        }}>
+          <div style={{ 
+            fontSize: '11px', 
+            fontWeight: 'bold',
+            color: '#111827',
+            marginBottom: '6px'
+          }}>
+            {category}：
+          </div>
+          {categorySkills.map((skill, skillIndex) => (
+            <div key={skillIndex} style={{ 
+              fontSize: '10px',
+              color: '#4b5563',
+              lineHeight: '1.5',
+              marginBottom: '3px',
+              paddingLeft: '8px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '4px'
+            }}>
+              <span style={{ color: '#d97706' }}>•</span>
+              <span>
+                <strong>{skill.name}</strong>
+                {skill.description && <span>：{skill.description}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>
+  )
+
+  // 教育背景组件
+  const EducationSection = () => (
+    <section>
+      <h2 style={{ 
+        fontSize: hasWorkOrProjects ? '12px' : '14px', 
+        fontWeight: 'bold', 
+        color: '#d97706',
+        marginBottom: hasWorkOrProjects ? '10px' : '12px',
+        display: hasWorkOrProjects ? 'flex' : 'block',
+        alignItems: 'center',
+        gap: '6px'
+      }}>
+        {hasWorkOrProjects && <span style={{ fontSize: '8px' }}>○</span>} 
+        教育背景 
+        {hasWorkOrProjects && <span style={{ fontSize: '8px' }}>○</span>}
+      </h2>
+      
+      {education && education.length > 0 ? (
+        education.map((edu) => (
+          <div key={edu.id} style={{ 
+            marginBottom: '12px',
+            paddingLeft: hasWorkOrProjects ? '0' : '20px',
+            borderLeft: hasWorkOrProjects ? 'none' : '3px solid #fbbf24'
+          }}>
+            <div style={{ 
+              fontSize: '12px', 
+              fontWeight: 'bold',
+              color: '#111827'
+            }}>
+              {edu.school}
+            </div>
+            <div style={{ 
+              fontSize: '10px', 
+              color: '#6b7280'
+            }}>
+              {personalInfo.location?.split(',')[0] || '城市'}
+            </div>
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#374151',
+              marginTop: '2px'
+            }}>
+              {edu.degree} - {edu.major}
+            </div>
+            <div style={{ 
+              fontSize: '10px', 
+              fontWeight: 'bold',
+              color: '#111827',
+              marginTop: '2px'
+            }}>
+              {edu.duration}
+            </div>
+            {edu.gpa && (
+              <div style={{ 
+                fontSize: '10px',
+                color: '#6b7280',
+                marginTop: '2px'
+              }}>
+                GPA: {edu.gpa}
+              </div>
+            )}
+            {edu.description && (
+              <div style={{ 
+                fontSize: '10px',
+                color: '#6b7280',
+                marginTop: '4px',
+                lineHeight: '1.4'
+              }}>
+                {edu.description}
+              </div>
+            )}
+          </div>
+        ))
+      ) : (
+        <div style={{ 
+          fontSize: '11px',
+          color: '#6b7280',
+          fontStyle: 'italic',
+          paddingLeft: hasWorkOrProjects ? '0' : '20px'
+        }}>
+          教育背景信息待补充
+        </div>
+      )}
+    </section>
+  )
 
   return (
     <div className="bg-white text-black max-w-[210mm] mx-auto" 
@@ -160,26 +268,8 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
         backgroundColor: '#f9fafb',
         padding: '30px 20px'
       }}>
-        {/* 头像占位区域 */}
-        <div style={{ 
-          width: '120px',
-          height: '120px',
-          backgroundColor: '#e5e7eb',
-          borderRadius: '8px',
-          margin: '0 auto 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#9ca3af'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '36px', marginBottom: '4px' }}>👤</div>
-            <div style={{ fontSize: '10px' }}>照片</div>
-          </div>
-        </div>
-
         {/* 姓名和职位 */}
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '25px' }}>
           <h1 style={{ 
             fontSize: '20px', 
             fontWeight: 'bold',
@@ -203,18 +293,24 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
           marginBottom: '25px',
           lineHeight: '1.8'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ color: '#d97706' }}>📍</span>
-            <span>{personalInfo.location || '城市, 省份'}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ color: '#d97706' }}>📞</span>
-            <span>{personalInfo.phone || '138-xxxx-xxxx'}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ color: '#d97706' }}>✉️</span>
-            <span>{personalInfo.email || 'email@example.com'}</span>
-          </div>
+          {personalInfo.location && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ color: '#d97706' }}>📍</span>
+              <span>{personalInfo.location}</span>
+            </div>
+          )}
+          {personalInfo.phone && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ color: '#d97706' }}>📞</span>
+              <span>{personalInfo.phone}</span>
+            </div>
+          )}
+          {personalInfo.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ color: '#d97706' }}>✉️</span>
+              <span>{personalInfo.email}</span>
+            </div>
+          )}
           {personalInfo.website && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ color: '#d97706' }}>🔗</span>
@@ -223,224 +319,58 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
           )}
         </div>
 
-        {/* 个人资料 部分 */}
-        <section style={{ marginBottom: '25px' }}>
-          <h2 style={{ 
-            fontSize: '12px', 
-            fontWeight: 'bold', 
-            color: '#d97706',
-            marginBottom: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <span style={{ fontSize: '8px' }}>○</span> 个人资料 <span style={{ fontSize: '8px' }}>○</span>
-          </h2>
-          <div style={{ fontSize: '10px', color: '#4b5563' }}>
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                <span style={{ color: '#0077b5', fontWeight: 'bold' }}>in</span>
-                <span>{personalInfo.name || 'johndoe'}</span>
-              </div>
-              <div style={{ paddingLeft: '22px', fontSize: '9px', color: '#6b7280' }}>
-                LinkedIn
-              </div>
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                <span style={{ fontSize: '12px' }}>🐙</span>
-                <span>{personalInfo.name || 'johndoe'}</span>
-              </div>
-              <div style={{ paddingLeft: '22px', fontSize: '9px', color: '#6b7280' }}>
-                GitHub
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 技能 部分 */}
-        <section style={{ marginBottom: '25px' }}>
-          <h2 style={{ 
-            fontSize: '12px', 
-            fontWeight: 'bold', 
-            color: '#d97706',
-            marginBottom: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <span style={{ fontSize: '8px' }}>○</span> 技能 <span style={{ fontSize: '8px' }}>○</span>
-          </h2>
-          
-          {/* Web技术 */}
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ 
-              fontSize: '11px', 
-              fontWeight: 'bold',
-              color: '#111827',
-              marginBottom: '2px'
-            }}>
-              Web技术
-            </div>
-            <div style={{ 
-              fontSize: '9px',
-              color: '#6b7280',
-              marginBottom: '4px',
-              textAlign: 'center'
-            }}>
-              {getSkillLevel('webTech')}
-            </div>
-            <div style={{ 
-              fontSize: '10px',
-              color: '#4b5563',
-              lineHeight: '1.4',
-              textAlign: 'center'
-            }}>
-              {skillCategories.webTech.length > 0 ? skillCategories.webTech.join(', ') : 'HTML5, JavaScript, PHP, Python'}
-            </div>
-          </div>
-          
-          {/* Web框架 */}
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ 
-              fontSize: '11px', 
-              fontWeight: 'bold',
-              color: '#111827',
-              marginBottom: '2px'
-            }}>
-              Web框架
-            </div>
-            <div style={{ 
-              fontSize: '9px',
-              color: '#6b7280',
-              marginBottom: '4px',
-              textAlign: 'center'
-            }}>
-              {getSkillLevel('frameworks')}
-            </div>
-            <div style={{ 
-              fontSize: '10px',
-              color: '#4b5563',
-              lineHeight: '1.4',
-              textAlign: 'center'
-            }}>
-              {skillCategories.frameworks.length > 0 ? skillCategories.frameworks.join(', ') : 'React.js, Angular, Vue.js, Laravel, Django'}
-            </div>
-          </div>
-          
-          {/* 工具 */}
-          <div>
-            <div style={{ 
-              fontSize: '11px', 
-              fontWeight: 'bold',
-              color: '#111827',
-              marginBottom: '2px'
-            }}>
-              工具
-            </div>
-            <div style={{ 
-              fontSize: '9px',
-              color: '#6b7280',
-              marginBottom: '4px',
-              textAlign: 'center'
-            }}>
-              {getSkillLevel('tools')}
-            </div>
-            <div style={{ 
-              fontSize: '10px',
-              color: '#4b5563',
-              lineHeight: '1.4',
-              textAlign: 'center'
-            }}>
-              {skillCategories.tools.length > 0 ? skillCategories.tools.join(', ') : 'Webpack, Git, Jenkins, Docker, JIRA'}
-            </div>
-          </div>
-        </section>
-
-        {/* 证书认证 部分 */}
-        {certificates && certificates.length > 0 && (
-          <section style={{ marginBottom: '25px' }}>
-            <h2 style={{ 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              color: '#d97706',
-              marginBottom: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              <span style={{ fontSize: '8px' }}>○</span> 证书认证 <span style={{ fontSize: '8px' }}>○</span>
-            </h2>
-            {certificates.map((cert) => (
-              <div key={cert.id} style={{ marginBottom: '12px', textAlign: 'center' }}>
-                <div style={{ 
-                  fontSize: '11px', 
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  marginBottom: '2px'
+        {/* 动态内容：有工作/项目时显示技能，无工作/项目时显示教育 */}
+        {hasWorkOrProjects ? (
+          <>
+            {/* 技能在左侧 */}
+            {Object.keys(skillGroups).length > 0 && <SkillsSection />}
+            
+            {/* 证书认证在左侧 */}
+            {certificates && certificates.length > 0 && (
+              <section style={{ marginBottom: '25px' }}>
+                <h2 style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 'bold', 
+                  color: '#d97706',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}>
-                  {cert.name}
-                </div>
-                <div style={{ 
-                  fontSize: '10px',
-                  color: '#4b5563',
-                  marginBottom: '2px'
-                }}>
-                  {cert.issuer}
-                </div>
-                <div style={{ 
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  color: '#111827'
-                }}>
-                  {cert.date}
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {/* 项目 部分 */}
-        {projects && projects.length > 0 && (
-          <section>
-            <h2 style={{ 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              color: '#d97706',
-              marginBottom: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              <span style={{ fontSize: '8px' }}>○</span> 项目 <span style={{ fontSize: '8px' }}>○</span>
-            </h2>
-            {projects.map((project) => (
-              <div key={project.id} style={{ marginBottom: '12px', textAlign: 'center' }}>
-                <div style={{ 
-                  fontSize: '11px', 
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  marginBottom: '2px'
-                }}>
-                  {project.name}
-                </div>
-                <div style={{ 
-                  fontSize: '10px',
-                  color: '#4b5563',
-                  marginBottom: '4px'
-                }}>
-                  {project.role}
-                </div>
-                <div style={{ 
-                  fontSize: '10px',
-                  color: '#4b5563',
-                  lineHeight: '1.4'
-                }}>
-                  {project.description}
-                </div>
-              </div>
-            ))}
-          </section>
+                  <span style={{ fontSize: '8px' }}>○</span> 证书认证 <span style={{ fontSize: '8px' }}>○</span>
+                </h2>
+                {certificates.map((cert) => (
+                  <div key={cert.id} style={{ marginBottom: '12px' }}>
+                    <div style={{ 
+                      fontSize: '11px', 
+                      fontWeight: 'bold',
+                      color: '#111827',
+                      marginBottom: '2px'
+                    }}>
+                      {cert.name}
+                    </div>
+                    <div style={{ 
+                      fontSize: '10px',
+                      color: '#4b5563',
+                      marginBottom: '2px'
+                    }}>
+                      {cert.issuer}
+                    </div>
+                    <div style={{ 
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      color: '#111827'
+                    }}>
+                      {cert.date}
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
+        ) : (
+          /* 无工作/项目时，教育背景在左侧 */
+          <EducationSection />
         )}
       </div>
 
@@ -449,41 +379,42 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
         flex: 1,
         padding: '30px 30px'
       }}>
-        {/* 个人总结 部分 */}
-        <section style={{ marginBottom: '25px' }}>
-          <h2 style={{ 
-            fontSize: '14px', 
-            fontWeight: 'bold', 
-            color: '#d97706',
-            marginBottom: '10px'
-          }}>
-            个人总结
-          </h2>
-          <div style={{ 
-            fontSize: '11px', 
-            lineHeight: '1.6',
-            color: '#374151',
-            paddingLeft: '20px',
-            borderLeft: '3px solid #fbbf24'
-          }}>
-            {skillsSummary || personalInfo.summary || 
-            `具有${experience?.length || 0}年工作经验的${personalInfo.title || '专业人士'}，专注于前端技术和用户体验设计。熟练掌握现代Web开发技术，对新技术保持敏锐的洞察力。具有良好的团队协作能力和项目管理经验，能够独立完成项目从概念到部署的全过程。`}
-          </div>
-        </section>
+        {/* 个人总结 */}
+        {(skillsSummary || personalInfo.summary) && (
+          <section style={{ marginBottom: '25px' }}>
+            <h2 style={{ 
+              fontSize: '14px', 
+              fontWeight: 'bold', 
+              color: '#d97706',
+              marginBottom: '10px'
+            }}>
+              个人总结
+            </h2>
+            <div style={{ 
+              fontSize: '11px', 
+              lineHeight: '1.6',
+              color: '#374151',
+              paddingLeft: '20px',
+              borderLeft: '3px solid #fbbf24'
+            }}>
+              {skillsSummary || personalInfo.summary}
+            </div>
+          </section>
+        )}
 
-        {/* 工作经历 部分 */}
-        <section style={{ marginBottom: '25px' }}>
-          <h2 style={{ 
-            fontSize: '14px', 
-            fontWeight: 'bold', 
-            color: '#d97706',
-            marginBottom: '12px'
-          }}>
-            工作经历
-          </h2>
-          
-          {experience && experience.length > 0 ? (
-            experience.map((exp, index) => (
+        {/* 工作经历 - 只在有数据时显示 */}
+        {experience && experience.length > 0 && (
+          <section style={{ marginBottom: '25px' }}>
+            <h2 style={{ 
+              fontSize: '14px', 
+              fontWeight: 'bold', 
+              color: '#d97706',
+              marginBottom: '12px'
+            }}>
+              工作经历
+            </h2>
+            
+            {experience.map((exp, index) => (
               <div key={exp.id} style={{ 
                 marginBottom: index < experience.length - 1 ? '20px' : '0',
                 paddingLeft: '20px',
@@ -519,19 +450,20 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
                   </div>
                 </div>
                 
-                {/* 工作描述 */}
                 <ul style={{ margin: 0, paddingLeft: '0', listStyle: 'none' }}>
-                  <li style={{ 
-                    fontSize: '10px',
-                    color: '#374151',
-                    lineHeight: '1.5',
-                    marginBottom: '4px',
-                    paddingLeft: '12px',
-                    position: 'relative'
-                  }}>
-                    <span style={{ position: 'absolute', left: 0, color: '#d97706' }}>•</span>
-                    {exp.description}
-                  </li>
+                  {exp.description && (
+                    <li style={{ 
+                      fontSize: '10px',
+                      color: '#374151',
+                      lineHeight: '1.5',
+                      marginBottom: '4px',
+                      paddingLeft: '12px',
+                      position: 'relative'
+                    }}>
+                      <span style={{ position: 'absolute', left: 0, color: '#d97706' }}>•</span>
+                      {exp.description}
+                    </li>
+                  )}
                   {exp.achievements && exp.achievements.map((achievement, achIndex) => (
                     <li key={achIndex} style={{ 
                       fontSize: '10px',
@@ -546,102 +478,73 @@ const CreativeGoldenTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview
                     </li>
                   ))}
                 </ul>
-                
-                {/* 公司链接 */}
-                {exp.company.includes('http') && (
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: '#d97706',
-                    marginTop: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <span>🔗</span>
-                    <span>{exp.company}</span>
-                  </div>
-                )}
               </div>
-            ))
-          ) : (
-            <div style={{ 
-              fontSize: '11px',
-              color: '#6b7280',
-              fontStyle: 'italic',
-              paddingLeft: '20px'
-            }}>
-              期待获得相关工作机会
-            </div>
-          )}
-        </section>
+            ))}
+          </section>
+        )}
 
-        {/* 教育背景 部分 */}
-        <section>
-          <h2 style={{ 
-            fontSize: '14px', 
-            fontWeight: 'bold', 
-            color: '#d97706',
-            marginBottom: '12px'
-          }}>
-            教育背景
-          </h2>
-          
-          {education && education.length > 0 ? (
-            education.map((edu) => (
-              <div key={edu.id} style={{ 
+        {/* 项目经历 */}
+        {projects && projects.length > 0 && (
+          <section style={{ marginBottom: '25px' }}>
+            <h2 style={{ 
+              fontSize: '14px', 
+              fontWeight: 'bold', 
+              color: '#d97706',
+              marginBottom: '12px'
+            }}>
+              项目经历
+            </h2>
+            
+            {projects.map((project, index) => (
+              <div key={project.id} style={{ 
+                marginBottom: index < projects.length - 1 ? '16px' : '0',
                 paddingLeft: '20px',
                 borderLeft: '3px solid #fbbf24'
               }}>
                 <div style={{ 
                   fontSize: '12px', 
                   fontWeight: 'bold',
-                  color: '#111827'
+                  color: '#111827',
+                  marginBottom: '2px'
                 }}>
-                  {edu.school}
-                </div>
-                <div style={{ 
-                  fontSize: '10px', 
-                  color: '#6b7280'
-                }}>
-                  {personalInfo.location?.split(',')[0] || '城市'}
+                  {project.name}
                 </div>
                 <div style={{ 
                   fontSize: '11px', 
-                  color: '#374151',
-                  marginTop: '2px'
+                  color: '#4b5563',
+                  marginBottom: '4px'
                 }}>
-                  {edu.degree} - {edu.major}
+                  {project.role}
                 </div>
                 <div style={{ 
-                  fontSize: '10px', 
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  marginTop: '2px'
+                  fontSize: '10px',
+                  color: '#374151',
+                  lineHeight: '1.4',
+                  marginBottom: '4px'
                 }}>
-                  {edu.duration}
+                  {project.description}
                 </div>
-                {edu.gpa && (
+                {project.technologies && (
                   <div style={{ 
                     fontSize: '10px',
-                    color: '#6b7280',
-                    marginTop: '2px'
+                    color: '#6b7280'
                   }}>
-                    GPA: {edu.gpa}
+                    <strong>技术栈：</strong> {project.technologies}
                   </div>
                 )}
               </div>
-            ))
-          ) : (
-            <div style={{ 
-              fontSize: '11px',
-              color: '#6b7280',
-              fontStyle: 'italic',
-              paddingLeft: '20px'
-            }}>
-              教育背景信息待补充
-            </div>
-          )}
-        </section>
+            ))}
+          </section>
+        )}
+
+        {/* 动态内容：有工作/项目时显示教育，无工作/项目时显示技能 */}
+        {hasWorkOrProjects ? (
+          /* 有工作/项目时，教育背景在右侧 */
+          <EducationSection />
+        ) : (
+          /* 无工作/项目时，技能在右侧 */
+          Object.keys(skillGroups).length > 0 && <SkillsSection />
+        )}
       </div>
 
       {/* 打印样式 */}

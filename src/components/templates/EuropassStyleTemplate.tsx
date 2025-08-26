@@ -92,7 +92,10 @@ interface TemplateProps {
 const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = false }) => {
   const { personalInfo, experience, education, skills, projects, certificates, achievements, languages, skillsSummary } = resumeData
 
-  // 技能按类别分组
+  // 判断是否有工作或项目经历
+  const hasWorkOrProjects = (experience && experience.length > 0) || (projects && projects.length > 0)
+
+  // 技能按类别分组 - 改进版
   const formatSkillsForDisplay = () => {
     if (!skills || skills.length === 0) return {}
     
@@ -100,18 +103,246 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
       const category = skill.category || '专业技能'
       if (!acc[category]) acc[category] = []
       
-      const skillText = skill.description 
-        ? `${skill.name}：${skill.description}`
-        : skill.name
-      
-      acc[category].push(skillText)
+      acc[category].push({
+        name: skill.name,
+        description: skill.description || '',
+        level: skill.level
+      })
       return acc
-    }, {} as Record<string, string[]>)
+    }, {} as Record<string, Array<{name: string, description: string, level: string}>>)
 
     return groupedSkills
   }
 
   const skillGroups = formatSkillsForDisplay()
+
+  // 技能展示组件
+  const SkillsSection = ({ inSidebar = true }) => (
+    <section style={{ marginBottom: '25px' }}>
+      <div style={{ 
+        fontSize: inSidebar ? '11px' : '12px',
+        color: '#4a90e2',
+        marginBottom: inSidebar ? '10px' : '12px',
+        fontWeight: 'bold',
+        paddingBottom: inSidebar ? '0' : '4px',
+        borderBottom: inSidebar ? 'none' : '2px solid #4a90e2'
+      }}>
+        技能专长
+      </div>
+      {Object.entries(skillGroups).map(([category, categorySkills], index) => (
+        <div key={category} style={{ 
+          marginBottom: index < Object.keys(skillGroups).length - 1 ? '12px' : '0',
+          display: inSidebar ? 'block' : 'flex',
+          gap: inSidebar ? '0' : '20px'
+        }}>
+          {inSidebar ? (
+            // 左侧栏样式
+            <>
+              <div style={{ 
+                fontSize: '10px',
+                fontWeight: 'bold',
+                color: '#333',
+                marginBottom: '4px'
+              }}>
+                {category}
+              </div>
+              {categorySkills.map((skill, skillIndex) => (
+                <div key={skillIndex} style={{ 
+                  fontSize: '9px',
+                  color: '#666',
+                  lineHeight: '1.4',
+                  marginBottom: '2px',
+                  paddingLeft: '8px',
+                  position: 'relative'
+                }}>
+                  <span style={{ 
+                    position: 'absolute',
+                    left: 0,
+                    color: '#4a90e2'
+                  }}>•</span>
+                  <strong>{skill.name}</strong>
+                  {skill.description && <span>：{skill.description}</span>}
+                </div>
+              ))}
+            </>
+          ) : (
+            // 右侧主内容区样式
+            <>
+              <div style={{ 
+                width: '110px',
+                fontSize: '10px',
+                color: '#4a90e2',
+                flexShrink: 0,
+                textAlign: 'right',
+                paddingTop: '2px',
+                fontWeight: 'bold'
+              }}>
+                {category}
+              </div>
+              <div style={{ flex: 1 }}>
+                {categorySkills.map((skill, skillIndex) => (
+                  <div key={skillIndex} style={{ 
+                    fontSize: '10px',
+                    color: '#555',
+                    lineHeight: '1.6',
+                    marginBottom: '3px',
+                    paddingLeft: '16px',
+                    position: 'relative'
+                  }}>
+                    <span style={{ 
+                      position: 'absolute',
+                      left: '6px',
+                      color: '#4a90e2'
+                    }}>•</span>
+                    <strong>{skill.name}</strong>
+                    {skill.description && <span>：{skill.description}</span>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+    </section>
+  )
+
+  // 教育背景组件
+  const EducationSection = ({ inSidebar = false }) => (
+    <section style={{ marginBottom: '25px' }}>
+      <div style={{ 
+        fontSize: inSidebar ? '11px' : '12px',
+        color: '#4a90e2',
+        fontWeight: 'bold',
+        marginBottom: inSidebar ? '10px' : '12px',
+        paddingBottom: inSidebar ? '0' : '4px',
+        borderBottom: inSidebar ? 'none' : '2px solid #4a90e2'
+      }}>
+        教育背景
+      </div>
+      
+      {education && education.length > 0 ? (
+        education.map((edu, index) => (
+          <div key={edu.id} style={{ 
+            marginBottom: index < education.length - 1 ? '16px' : '0',
+            display: inSidebar ? 'block' : 'flex',
+            gap: inSidebar ? '0' : '20px'
+          }}>
+            {inSidebar ? (
+              // 左侧栏样式
+              <>
+                <div style={{ 
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  color: '#333',
+                  marginBottom: '2px'
+                }}>
+                  {edu.school}
+                </div>
+                <div style={{ 
+                  fontSize: '9px',
+                  color: '#666',
+                  marginBottom: '2px'
+                }}>
+                  {edu.degree} - {edu.major}
+                </div>
+                <div style={{ 
+                  fontSize: '9px',
+                  color: '#4a90e2',
+                  fontWeight: 'bold'
+                }}>
+                  {edu.duration}
+                </div>
+                {edu.gpa && (
+                  <div style={{ 
+                    fontSize: '9px',
+                    color: '#777',
+                    marginTop: '2px'
+                  }}>
+                    GPA: {edu.gpa}
+                  </div>
+                )}
+                {edu.description && (
+                  <div style={{ 
+                    fontSize: '9px',
+                    color: '#666',
+                    marginTop: '4px',
+                    lineHeight: '1.4'
+                  }}>
+                    {edu.description}
+                  </div>
+                )}
+              </>
+            ) : (
+              // 右侧主内容区样式
+              <>
+                <div style={{ 
+                  width: '110px',
+                  fontSize: '10px',
+                  color: '#4a90e2',
+                  flexShrink: 0,
+                  textAlign: 'right',
+                  paddingTop: '2px'
+                }}>
+                  {edu.duration}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 'bold',
+                    color: '#333',
+                    marginBottom: '2px'
+                  }}>
+                    {edu.school}
+                  </div>
+                  <div style={{ 
+                    fontSize: '10px', 
+                    color: '#999',
+                    marginBottom: '4px'
+                  }}>
+                    {personalInfo.location?.split(',')[0] || '城市'}
+                  </div>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    color: '#555'
+                  }}>
+                    {edu.degree} - {edu.major}
+                  </div>
+                  {edu.description && (
+                    <div style={{ 
+                      fontSize: '10px',
+                      color: '#666',
+                      marginTop: '4px',
+                      lineHeight: '1.4'
+                    }}>
+                      {edu.description}
+                    </div>
+                  )}
+                  {edu.gpa && (
+                    <div style={{ 
+                      fontSize: '10px',
+                      color: '#777',
+                      marginTop: '2px'
+                    }}>
+                      GPA: {edu.gpa}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))
+      ) : (
+        <div style={{ 
+          fontSize: '10px',
+          color: '#999',
+          fontStyle: 'italic',
+          marginLeft: inSidebar ? '0' : '130px'
+        }}>
+          教育背景信息待补充
+        </div>
+      )}
+    </section>
+  )
 
   return (
     <div className="bg-white text-black max-w-[210mm] mx-auto" 
@@ -152,7 +383,7 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
           </div>
         </div>
 
-        {/* 个人信息标题 */}
+        {/* 个人信息 */}
         <div style={{ 
           fontSize: '11px',
           color: '#4a90e2',
@@ -162,7 +393,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
           个人信息
         </div>
 
-        {/* 基本信息 */}
         <div style={{ marginBottom: '25px' }}>
           <div style={{ 
             fontSize: '16px',
@@ -180,106 +410,82 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
             {personalInfo.title || '职位名称'}
           </div>
           <div style={{ fontSize: '10px', color: '#666', lineHeight: '1.8' }}>
-            <div style={{ marginBottom: '4px' }}>
-              📍 {personalInfo.location || '城市, 省份'}
-            </div>
-            <div style={{ marginBottom: '4px' }}>
-              📞 {personalInfo.phone || '138-xxxx-xxxx'}
-            </div>
-            <div style={{ marginBottom: '4px' }}>
-              ✉️ {personalInfo.email || 'email@example.com'}
-            </div>
+            {personalInfo.location && (
+              <div style={{ marginBottom: '4px' }}>📍 {personalInfo.location}</div>
+            )}
+            {personalInfo.phone && (
+              <div style={{ marginBottom: '4px' }}>📞 {personalInfo.phone}</div>
+            )}
+            {personalInfo.email && (
+              <div style={{ marginBottom: '4px' }}>✉️ {personalInfo.email}</div>
+            )}
             {personalInfo.website && (
-              <div>
-                🌐 {personalInfo.website}
-              </div>
+              <div>🌐 {personalInfo.website}</div>
             )}
           </div>
         </div>
 
-        {/* 技能专长 */}
-        {Object.keys(skillGroups).length > 0 && (
-          <section style={{ marginBottom: '25px' }}>
-            <div style={{ 
-              fontSize: '11px',
-              color: '#4a90e2',
-              marginBottom: '10px',
-              fontWeight: 'bold'
-            }}>
-              技能专长
-            </div>
-            {Object.entries(skillGroups).map(([category, categorySkills], index) => (
-              <div key={category} style={{ marginBottom: index < Object.keys(skillGroups).length - 1 ? '12px' : '0' }}>
+        {/* 动态内容：有工作/项目时显示技能，无工作/项目时显示教育 */}
+        {hasWorkOrProjects ? (
+          <>
+            {/* 技能在左侧 */}
+            {Object.keys(skillGroups).length > 0 && <SkillsSection inSidebar={true} />}
+            
+            {/* 语言能力 */}
+            {languages && languages.length > 0 && (
+              <section style={{ marginBottom: '25px' }}>
                 <div style={{ 
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  color: '#333',
-                  marginBottom: '4px'
+                  fontSize: '11px',
+                  color: '#4a90e2',
+                  marginBottom: '10px',
+                  fontWeight: 'bold'
                 }}>
-                  {category}
+                  语言能力
                 </div>
-                <div style={{ 
-                  fontSize: '9px',
-                  color: '#666',
-                  lineHeight: '1.4'
-                }}>
-                  {categorySkills.join('、')}
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {/* 语言能力 */}
-        {languages && languages.length > 0 && (
-          <section style={{ marginBottom: '25px' }}>
-            <div style={{ 
-              fontSize: '11px',
-              color: '#4a90e2',
-              marginBottom: '10px',
-              fontWeight: 'bold'
-            }}>
-              语言能力
-            </div>
-            {languages.map((language, index) => (
-              <div key={language.id} style={{ 
-                marginBottom: index < languages.length - 1 ? '8px' : '0',
-                fontSize: '10px'
-              }}>
-                <span style={{ fontWeight: 'bold', color: '#333' }}>{language.name}</span>
-                <span style={{ color: '#666', marginLeft: '8px' }}>{language.level}</span>
-                {language.description && (
-                  <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
-                    {language.description}
+                {languages.map((language, index) => (
+                  <div key={language.id} style={{ 
+                    marginBottom: index < languages.length - 1 ? '8px' : '0',
+                    fontSize: '10px'
+                  }}>
+                    <span style={{ fontWeight: 'bold', color: '#333' }}>{language.name}</span>
+                    <span style={{ color: '#666', marginLeft: '8px' }}>{language.level}</span>
+                    {language.description && (
+                      <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
+                        {language.description}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-          </section>
-        )}
+                ))}
+              </section>
+            )}
 
-        {/* 证书认证 */}
-        {certificates && certificates.length > 0 && (
-          <section>
-            <div style={{ 
-              fontSize: '11px',
-              color: '#4a90e2',
-              marginBottom: '10px',
-              fontWeight: 'bold'
-            }}>
-              证书认证
-            </div>
-            {certificates.map((cert, index) => (
-              <div key={cert.id} style={{ 
-                marginBottom: index < certificates.length - 1 ? '8px' : '0',
-                fontSize: '9px'
-              }}>
-                <div style={{ fontWeight: 'bold', color: '#333' }}>{cert.name}</div>
-                <div style={{ color: '#666' }}>{cert.issuer}</div>
-                <div style={{ color: '#999' }}>{cert.date}</div>
-              </div>
-            ))}
-          </section>
+            {/* 证书认证 */}
+            {certificates && certificates.length > 0 && (
+              <section>
+                <div style={{ 
+                  fontSize: '11px',
+                  color: '#4a90e2',
+                  marginBottom: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  证书认证
+                </div>
+                {certificates.map((cert, index) => (
+                  <div key={cert.id} style={{ 
+                    marginBottom: index < certificates.length - 1 ? '8px' : '0',
+                    fontSize: '9px'
+                  }}>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>{cert.name}</div>
+                    <div style={{ color: '#666' }}>{cert.issuer}</div>
+                    <div style={{ color: '#999' }}>{cert.date}</div>
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
+        ) : (
+          /* 无工作/项目时，教育背景在左侧 */
+          <EducationSection inSidebar={true} />
         )}
       </div>
 
@@ -336,7 +542,7 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
           </section>
         )}
 
-        {/* 工作经历 */}
+        {/* 工作经历 - 只在有数据时显示 */}
         {experience && experience.length > 0 && (
           <section style={{ marginBottom: '25px' }}>
             <div style={{ 
@@ -356,7 +562,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                 display: 'flex',
                 gap: '20px'
               }}>
-                {/* 时间列 */}
                 <div style={{ 
                   width: '110px',
                   fontSize: '10px',
@@ -368,7 +573,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                   {exp.duration}
                 </div>
                 
-                {/* 内容列 */}
                 <div style={{ flex: 1 }}>
                   <div style={{ 
                     fontSize: '12px', 
@@ -393,7 +597,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                     {personalInfo.location?.split(',')[0] || '城市'}
                   </div>
                   
-                  {/* 工作内容 */}
                   <ul style={{ 
                     margin: 0, 
                     paddingLeft: '16px',
@@ -401,9 +604,11 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                     color: '#555',
                     lineHeight: '1.6'
                   }}>
-                    <li style={{ marginBottom: '4px' }}>
-                      {exp.description}
-                    </li>
+                    {exp.description && (
+                      <li style={{ marginBottom: '4px' }}>
+                        {exp.description}
+                      </li>
+                    )}
                     {exp.achievements && exp.achievements.map((achievement, achIndex) => (
                       <li key={achIndex} style={{ marginBottom: '4px' }}>
                         {achievement}
@@ -436,7 +641,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                 display: 'flex',
                 gap: '20px'
               }}>
-                {/* 时间列 */}
                 <div style={{ 
                   width: '110px',
                   fontSize: '10px',
@@ -448,7 +652,6 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                   {project.duration || '项目时间'}
                 </div>
                 
-                {/* 内容列 */}
                 <div style={{ flex: 1 }}>
                   <div style={{ 
                     fontSize: '12px', 
@@ -481,103 +684,23 @@ const EuropassStyleTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview 
                       <strong>技术栈：</strong> {project.technologies}
                     </div>
                   )}
-                  {project.link && (
-                    <div style={{ 
-                      fontSize: '10px',
-                      color: '#4a90e2',
-                      marginTop: '2px'
-                    }}>
-                      🔗 {project.link}
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
           </section>
         )}
 
-        {/* 教育背景 */}
-        {education && education.length > 0 && (
-          <section style={{ marginBottom: '25px' }}>
-            <div style={{ 
-              fontSize: '12px',
-              color: '#4a90e2',
-              fontWeight: 'bold',
-              marginBottom: '12px',
-              paddingBottom: '4px',
-              borderBottom: '2px solid #4a90e2'
-            }}>
-              教育背景
-            </div>
-            
-            {education.map((edu, index) => (
-              <div key={edu.id} style={{ 
-                marginBottom: index < education.length - 1 ? '16px' : '0',
-                display: 'flex',
-                gap: '20px'
-              }}>
-                {/* 时间列 */}
-                <div style={{ 
-                  width: '110px',
-                  fontSize: '10px',
-                  color: '#4a90e2',
-                  flexShrink: 0,
-                  textAlign: 'right',
-                  paddingTop: '2px'
-                }}>
-                  {edu.duration}
-                </div>
-                
-                {/* 内容列 */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    fontWeight: 'bold',
-                    color: '#333',
-                    marginBottom: '2px'
-                  }}>
-                    {edu.school}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px', 
-                    color: '#999',
-                    marginBottom: '4px'
-                  }}>
-                    {personalInfo.location?.split(',')[0] || '城市'}
-                  </div>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    color: '#555'
-                  }}>
-                    {edu.degree} - {edu.major}
-                  </div>
-                  {edu.description && (
-                    <div style={{ 
-                      fontSize: '10px',
-                      color: '#666',
-                      marginTop: '4px',
-                      lineHeight: '1.4'
-                    }}>
-                      {edu.description}
-                    </div>
-                  )}
-                  {edu.gpa && (
-                    <div style={{ 
-                      fontSize: '10px',
-                      color: '#777',
-                      marginTop: '2px'
-                    }}>
-                      GPA: {edu.gpa}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </section>
+        {/* 动态内容：有工作/项目时显示教育，无工作/项目时显示技能 */}
+        {hasWorkOrProjects ? (
+          /* 有工作/项目时，教育背景在右侧 */
+          <EducationSection inSidebar={false} />
+        ) : (
+          /* 无工作/项目时，技能在右侧 */
+          Object.keys(skillGroups).length > 0 && <SkillsSection inSidebar={false} />
         )}
 
-        {/* 主要成就 */}
-        {achievements && achievements.length > 0 && (
+        {/* 主要成就 - 只在有工作经历时显示 */}
+        {hasWorkOrProjects && achievements && achievements.length > 0 && (
           <section>
             <div style={{ 
               fontSize: '12px',

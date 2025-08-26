@@ -5,12 +5,10 @@ import jsPDF from 'jspdf'
 
 // 导入所有模板
 import StandardTemplate from './templates/StandardTemplate'
-import EliteTemplate from './templates/EliteTemplate'
-import ModernTimelineTemplate from './templates/ModernTimelineTemplate'
-import MinimalBusinessTemplate from './templates/MinimalBusinessTemplate'
-import CreativeDuoToneTemplate from './templates/CreativeDuoToneTemplate'
 import CleanProfessionalTemplate from './templates/CleanProfessionalTemplate'
 import AmericanBusinessTemplate from './templates/AmericanBusinessTemplate'
+import CreativeGoldenTemplate from './templates/CreativeGoldenTemplate'
+import EuropassStyleTemplate from './templates/EuropassStyleTemplate'
 
 // 导入评价弹窗组件
 import FeedbackModal from './FeedbackModal'
@@ -19,7 +17,7 @@ import FeedbackModal from './FeedbackModal'
 import ShareUnlockModal from './ShareUnlockModal'
 import { findOrCreateUser, saveResume, checkExportPermission } from '../lib/supabase'
 
-export type TemplateType = 'standard' | 'elite' | 'modern-timeline' | 'minimal-business' | 'creative-duotone' | 'clean-professional' | 'american-business'
+export type TemplateType = 'standard' | 'clean-professional' | 'american-business' | 'creative-golden' | 'europass-style'
 
 export interface PersonalInfo {
   name: string
@@ -127,45 +125,33 @@ interface ResumeEditorProps {
 const TEMPLATE_CONFIG = {
   'standard': {
     name: '标准简历',
-    description: '经典排版，适合大多数行业',
+    description: '经典排版，智能生成内容，适合大多数行业',
     component: StandardTemplate,
     color: '#3B82F6'
   },
-  'elite': {
-    name: '精英商务',
-    description: '专业蓝色主题，时间线设计，适合高级职位',
-    component: EliteTemplate,
-    color: '#1E40AF'
-  },
-  'modern-timeline': {
-    name: '现代时间线',
-    description: '渐变设计，时尚时间线布局，突出职业发展',
-    component: ModernTimelineTemplate,
-    color: '#667EEA'
-  },
-  'minimal-business': {
-    name: '简约商务',
-    description: '极简黑白设计，专注内容展示，适合传统行业',
-    component: MinimalBusinessTemplate,
-    color: '#000000'
-  },
-  'creative-duotone': {
-    name: '创意双色调',
-    description: '分割式设计，个性鲜明，适合创意类职位',
-    component: CreativeDuoToneTemplate,
-    color: '#1A202C'
-  },
   'clean-professional': {
     name: '简洁专业',
-    description: '经典黑白设计，清晰排版，适合所有行业',
+    description: '极简设计，英文标题，适合国际化企业',
     component: CleanProfessionalTemplate,
     color: '#22c55e'
   },
   'american-business': {
     name: '美式商务',
-    description: '经典美式简历风格，红色强调，适合外企和国际化岗位',
+    description: '红色强调，三栏技能布局，适合外企',
     component: AmericanBusinessTemplate,
     color: '#dc2626'
+  },
+  'creative-golden': {
+    name: '创意金色',
+    description: '左侧边栏，金色装饰，适合创意岗位',
+    component: CreativeGoldenTemplate,
+    color: '#d97706'
+  },
+  'europass-style': {
+    name: 'Europass风格',
+    description: '欧洲标准格式，时间轴布局，适合学术科研',
+    component: EuropassStyleTemplate,
+    color: '#4a90e2'
   }
 }
 

@@ -9,21 +9,21 @@ interface TemplateProps {
 const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = false }) => {
   const { personalInfo, experience, education, skills, projects, certificates, achievements, languages, skillsSummary } = resumeData
 
-  // 技能按类别分组
+  // 技能按类别分组 - 改进版
   const formatSkillsForDisplay = () => {
     if (!skills || skills.length === 0) return {}
     
     const groupedSkills = skills.reduce((acc, skill) => {
-      const category = skill.category || '专业技能'
+      const category = skill.category || 'Professional Skills'
       if (!acc[category]) acc[category] = []
       
-      const skillText = skill.description 
-        ? `${skill.name}, ${skill.description}`
-        : skill.name
-      
-      acc[category].push(skillText)
+      acc[category].push({
+        name: skill.name,
+        description: skill.description || '',
+        level: skill.level
+      })
       return acc
-    }, {} as Record<string, string[]>)
+    }, {} as Record<string, Array<{name: string, description: string, level: string}>>)
 
     return groupedSkills
   }
@@ -39,6 +39,9 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
     }
     return levelMap[level as keyof typeof levelMap] || 'Intermediate'
   }
+
+  // 判断是否有工作经验
+  const hasWorkExperience = experience && experience.length > 0
 
   return (
     <div className="bg-white text-black max-w-[210mm] mx-auto" 
@@ -83,28 +86,16 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
           color: '#555'
         }}>
           {personalInfo.location && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#22c55e' }}>📍</span>
-              <span>{personalInfo.location}</span>
-            </div>
+            <span>{personalInfo.location}</span>
           )}
           {personalInfo.phone && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#22c55e' }}>📞</span>
-              <span>{personalInfo.phone}</span>
-            </div>
+            <span>{personalInfo.phone}</span>
           )}
           {personalInfo.email && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#22c55e' }}>✉️</span>
-              <span>{personalInfo.email}</span>
-            </div>
+            <span>{personalInfo.email}</span>
           )}
           {personalInfo.website && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#22c55e' }}>🌐</span>
-              <span>{personalInfo.website}</span>
-            </div>
+            <span>{personalInfo.website}</span>
           )}
         </div>
       </header>
@@ -140,7 +131,7 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
       )}
 
       {/* 工作经历 */}
-      {experience && experience.length > 0 && (
+      {hasWorkExperience && (
         <section style={{ marginBottom: '18px' }}>
           <h2 style={{ 
             fontSize: '14px', 
@@ -155,7 +146,6 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
           
           {experience.map((exp, index) => (
             <div key={exp.id} style={{ marginBottom: index < experience.length - 1 ? '16px' : '0' }}>
-              {/* 公司和时间 */}
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -185,19 +175,17 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
                   textAlign: 'right'
                 }}>
                   {exp.duration}
-                  {personalInfo.location && (
-                    <div>{personalInfo.location.split(',').pop()?.trim() || 'China'}</div>
-                  )}
+                  <div>{personalInfo.location?.split(',').pop()?.trim() || ''}</div>
                 </div>
               </div>
               
-              {/* 工作描述和成就 */}
               <div style={{ paddingLeft: '12px' }}>
-                <div style={{ marginBottom: '6px' }}>
+                {exp.description && (
                   <div style={{ 
                     fontSize: '11px',
                     color: '#333',
                     lineHeight: '1.5',
+                    marginBottom: '4px',
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '6px'
@@ -205,27 +193,22 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
                     <span style={{ color: '#666', fontSize: '8px', marginTop: '4px' }}>•</span>
                     <span>{exp.description}</span>
                   </div>
-                </div>
-                
-                {/* 工作成就 */}
-                {exp.achievements && exp.achievements.length > 0 && (
-                  <div>
-                    {exp.achievements.map((achievement, achIndex) => (
-                      <div key={achIndex} style={{ 
-                        fontSize: '11px',
-                        color: '#333',
-                        lineHeight: '1.5',
-                        marginBottom: '4px',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '6px'
-                      }}>
-                        <span style={{ color: '#666', fontSize: '8px', marginTop: '4px' }}>•</span>
-                        <span>{achievement}</span>
-                      </div>
-                    ))}
-                  </div>
                 )}
+                
+                {exp.achievements && exp.achievements.map((achievement, achIndex) => (
+                  <div key={achIndex} style={{ 
+                    fontSize: '11px',
+                    color: '#333',
+                    lineHeight: '1.5',
+                    marginBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px'
+                  }}>
+                    <span style={{ color: '#666', fontSize: '8px', marginTop: '4px' }}>•</span>
+                    <span>{achievement}</span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -267,12 +250,6 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
                   marginBottom: '2px'
                 }}>
                   {edu.major}
-                </div>
-                <div style={{ 
-                  fontSize: '10px', 
-                  color: '#666'
-                }}>
-                  {personalInfo.location?.split(',').pop()?.trim() || 'China'}
                 </div>
                 {edu.description && (
                   <div style={{ 
@@ -331,74 +308,54 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
             Projects
           </h2>
           
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: projects.length > 1 ? '1fr 1fr' : '1fr',
-            gap: '16px'
-          }}>
-            {projects.map((project) => (
-              <div key={project.id}>
-                <div style={{ 
-                  fontSize: '12px', 
-                  fontWeight: 'bold',
-                  color: '#000',
-                  marginBottom: '2px'
-                }}>
-                  {project.name}
-                </div>
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: '#666',
-                  marginBottom: '4px'
-                }}>
-                  {project.role}
-                </div>
-                
-                <div style={{ 
-                  fontSize: '11px',
-                  color: '#333',
-                  lineHeight: '1.5',
-                  marginBottom: '4px'
-                }}>
-                  {project.description}
-                </div>
-                
-                {project.technologies && (
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: '#555'
-                  }}>
-                    <strong>技术栈：</strong> {project.technologies}
-                  </div>
-                )}
-                
-                {project.link && (
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: '#22c55e',
-                    marginTop: '2px'
-                  }}>
-                    🔗 {project.link}
-                  </div>
-                )}
-                
-                {project.duration && (
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: '#666',
-                    marginTop: '2px',
-                    fontWeight: 'bold'
-                  }}>
-                    {project.duration}
-                  </div>
-                )}
+          {projects.map((project, index) => (
+            <div key={project.id} style={{ marginBottom: index < projects.length - 1 ? '12px' : '0' }}>
+              <div style={{ 
+                fontSize: '12px', 
+                fontWeight: 'bold',
+                color: '#000',
+                marginBottom: '2px'
+              }}>
+                {project.name}
               </div>
-            ))}
-          </div>
+              <div style={{ 
+                fontSize: '11px', 
+                color: '#666',
+                marginBottom: '4px'
+              }}>
+                {project.role}
+              </div>
+              <div style={{ 
+                fontSize: '11px',
+                color: '#333',
+                lineHeight: '1.5',
+                marginBottom: '4px'
+              }}>
+                {project.description}
+              </div>
+              {project.technologies && (
+                <div style={{ 
+                  fontSize: '10px',
+                  color: '#555'
+                }}>
+                  <strong>Technologies:</strong> {project.technologies}
+                </div>
+              )}
+              {project.link && (
+                <div style={{ 
+                  fontSize: '10px',
+                  color: '#22c55e',
+                  marginTop: '2px'
+                }}>
+                  {project.link}
+                </div>
+              )}
+            </div>
+          ))}
         </section>
       )}
 
-      {/* 技能专长 */}
+      {/* 技能专长 - 改进的展示方式 */}
       {Object.keys(skillGroups).length > 0 && (
         <section style={{ marginBottom: '18px' }}>
           <h2 style={{ 
@@ -412,54 +369,43 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
             Skills
           </h2>
           
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '16px'
-          }}>
-            {Object.entries(skillGroups).map(([category, categorySkills]) => (
-              <div key={category}>
-                <div style={{ 
-                  fontSize: '11px', 
-                  fontWeight: 'bold',
-                  color: '#000',
-                  marginBottom: '6px'
-                }}>
-                  {category}
-                </div>
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: '#333',
-                  marginBottom: '4px'
-                }}>
-                  {/* 获取对应技能的等级 */}
-                  {skills.find(skill => 
-                    skillGroups[category].some(skillText => skillText.includes(skill.name))
-                  ) && (
-                    <div style={{ 
-                      fontSize: '10px',
-                      color: '#666',
-                      marginBottom: '4px'
-                    }}>
-                      {getSkillLevelText(
-                        skills.find(skill => 
-                          skillGroups[category].some(skillText => skillText.includes(skill.name))
-                        )?.level || 'proficient'
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                <div style={{ fontSize: '11px', color: '#333' }}>
-                  {categorySkills.join(', ')}
-                </div>
+          {Object.entries(skillGroups).map(([category, categorySkills], categoryIndex) => (
+            <div key={category} style={{ 
+              marginBottom: categoryIndex < Object.keys(skillGroups).length - 1 ? '16px' : '0' 
+            }}>
+              <div style={{ 
+                fontSize: '12px', 
+                fontWeight: 'bold',
+                color: '#000',
+                marginBottom: '8px'
+              }}>
+                {category}:
               </div>
-            ))}
-          </div>
+              <div style={{ paddingLeft: '12px' }}>
+                {categorySkills.map((skill, skillIndex) => (
+                  <div key={skillIndex} style={{ 
+                    fontSize: '11px',
+                    color: '#333',
+                    lineHeight: '1.6',
+                    marginBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px'
+                  }}>
+                    <span style={{ color: '#666', fontSize: '8px', marginTop: '4px' }}>•</span>
+                    <span>
+                      <strong>{skill.name}</strong>
+                      {skill.description && <span>: {skill.description}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
       )}
 
-      {/* 证书认证（如果有） */}
+      {/* 证书认证 */}
       {certificates && certificates.length > 0 && (
         <section style={{ marginBottom: '18px' }}>
           <h2 style={{ 
@@ -473,38 +419,36 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
             Certifications
           </h2>
           
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: certificates.length > 1 ? '1fr 1fr' : '1fr',
-            gap: '12px'
-          }}>
-            {certificates.map((cert) => (
-              <div key={cert.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    fontWeight: 'bold',
-                    color: '#000'
-                  }}>
-                    {cert.name}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px', 
-                    color: '#666'
-                  }}>
-                    {cert.issuer}
-                  </div>
+          {certificates.map((cert, index) => (
+            <div key={cert.id} style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              marginBottom: index < certificates.length - 1 ? '8px' : '0'
+            }}>
+              <div>
+                <div style={{ 
+                  fontSize: '11px', 
+                  fontWeight: 'bold',
+                  color: '#000'
+                }}>
+                  {cert.name}
                 </div>
                 <div style={{ 
                   fontSize: '10px', 
-                  color: '#666',
-                  fontWeight: 'bold'
+                  color: '#666'
                 }}>
-                  {cert.date}
+                  {cert.issuer}
                 </div>
               </div>
-            ))}
-          </div>
+              <div style={{ 
+                fontSize: '10px', 
+                color: '#666',
+                fontWeight: 'bold'
+              }}>
+                {cert.date}
+              </div>
+            </div>
+          ))}
         </section>
       )}
 
@@ -522,45 +466,25 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
             Languages
           </h2>
           
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: languages.length > 2 ? 'repeat(2, 1fr)' : '1fr',
-            gap: '12px'
-          }}>
-            {languages.map((language) => (
-              <div key={language.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <span style={{ 
-                    fontSize: '11px', 
-                    fontWeight: 'bold',
-                    color: '#000'
-                  }}>
-                    {language.name}
-                  </span>
-                  {language.description && (
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: '#666',
-                      marginTop: '2px'
-                    }}>
-                      {language.description}
-                    </div>
-                  )}
-                </div>
-                <div style={{ 
-                  fontSize: '10px', 
-                  color: '#666'
-                }}>
-                  {language.level}
-                </div>
-              </div>
-            ))}
-          </div>
+          {languages.map((language, index) => (
+            <div key={language.id} style={{ 
+              marginBottom: index < languages.length - 1 ? '6px' : '0',
+              fontSize: '11px',
+              color: '#333'
+            }}>
+              <strong>{language.name}</strong> - {language.level}
+              {language.description && (
+                <span style={{ color: '#666', marginLeft: '8px' }}>
+                  ({language.description})
+                </span>
+              )}
+            </div>
+          ))}
         </section>
       )}
 
-      {/* 主要成就（如果有） */}
-      {achievements && achievements.length > 0 && (
+      {/* 主要成就 - 只在有工作经验时显示 */}
+      {hasWorkExperience && achievements && achievements.length > 0 && (
         <section>
           <h2 style={{ 
             fontSize: '14px', 
@@ -574,19 +498,19 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
           </h2>
           
           <div>
-            {achievements.map((achievement) => (
+            {achievements.map((achievement, index) => (
               <div key={achievement.id} style={{ 
                 fontSize: '11px',
                 color: '#333',
                 lineHeight: '1.5',
-                marginBottom: '6px',
+                marginBottom: index < achievements.length - 1 ? '6px' : '0',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '6px'
               }}>
                 <span style={{ color: '#666', fontSize: '8px', marginTop: '4px' }}>•</span>
                 <div>
-                  <span style={{ fontWeight: 'bold' }}>{achievement.title}</span>
+                  <strong>{achievement.title}</strong>
                   {achievement.description && <span>: {achievement.description}</span>}
                   {achievement.date && (
                     <span style={{ color: '#666', fontSize: '10px', marginLeft: '8px' }}>
@@ -608,7 +532,7 @@ const CleanProfessionalTemplate: React.FC<TemplateProps> = ({ resumeData, isPrev
           }
           * {
             -webkit-print-color-adjust: exact !important;
-            color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>

@@ -1,96 +1,60 @@
-// src/utils/aiService.ts - 修复版本，可直接覆盖
+// ============================================
+// 2. 更新 src/utils/aiService.ts (完整重写)
+// ============================================
 
-import type { PersonalInfo, Education, Experience, Project } from '../App'
+interface PersonalInfo {
+  name: string
+  email: string
+  phone: string
+  location: string
+  title?: string
+  summary?: string
+}
 
-// 简化的接口定义
-interface SkillRecommendation {
+interface Education {
   id: string
-  skill: string
-  level: 'understand' | 'proficient' | 'expert'
+  school: string
+  degree: string
+  major: string
+  duration: string
+  description: string
+  gpa?: string
+}
+
+interface RecommendedSkill {
+  name: string
+  level: 'beginner' | 'intermediate' | 'advanced' | 'expert'
   category: string
   description: string
-  value_proposition: string
-  priority: 'high' | 'medium' | 'low'
+  reason: string
   selected: boolean
-  salaryImpact?: string
-  learningTime?: string
-  trend?: 'rising' | 'stable' | 'declining'
 }
 
-interface AchievementItem {
-  id: string
-  content: string
-  metrics: {
-    type: 'absolute' | 'percentage' | 'range' | 'qualitative'
-    value: string
-    confidence: number
-  }
-  relevance: {
-    target_job_title: string
-    score: number
-  }
-  tags: string[]
-}
-
-// 简化的事件总线
-class SimpleEventBus {
-  private handlers: Map<string, Function[]> = new Map()
-
-  on(event: string, handler: Function) {
-    if (!this.handlers.has(event)) {
-      this.handlers.set(event, [])
-    }
-    this.handlers.get(event)!.push(handler)
-  }
-
-  emit(event: string, data: any) {
-    const eventHandlers = this.handlers.get(event) || []
-    eventHandlers.forEach(handler => {
-      try {
-        handler(data)
-      } catch (error) {
-        console.error(`Event handler error for ${event}:`, error)
-      }
-    })
-  }
-
-  off(event: string, handler: Function) {
-    const handlers = this.handlers.get(event) || []
-    const index = handlers.indexOf(handler)
-    if (index > -1) {
-      handlers.splice(index, 1)
-    }
-  }
-
-  clear() {
-    this.handlers.clear()
-  }
-}
-
-// 主AI服务类
 class AIService {
   private baseURL: string
-  private eventBus: SimpleEventBus
 
-  constructor(eventBus?: SimpleEventBus) {
+  constructor() {
+    // 自动检测环境
     this.baseURL = window.location.hostname === 'localhost' 
       ? 'http://localhost:8888/.netlify/functions/ai-service'
       : '/.netlify/functions/ai-service'
-    this.eventBus = eventBus || new SimpleEventBus()
   }
 
-  // 核心AI调用方法
-  private async makeAICall(prompt: string, systemMessage: string, action: string = 'general'): Promise<string> {
+  private async callAIFunction(prompt: string, systemMessage: string, action: string = 'default', maxTokens: number = 2000): Promise<string> {
     try {
+      console.log('Calling AI function at:', this.baseURL)
+      
       const response = await fetch(this.baseURL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           prompt,
           systemMessage,
           action,
           temperature: 0.7,
-          maxTokens: 3000
+          maxTokens
         })
       })
 
@@ -100,156 +64,87 @@ class AIService {
       }
 
       const data = await response.json()
-      return data.content || ''
+      
+      if (!data.content) {
+        throw new Error('AI返回内容为空')
+      }
+
+      return data.content
     } catch (error) {
       console.error('AI Service Error:', error)
       throw error
     }
   }
 
-  // 公共AI调用方法（供组件使用）
-  async callAI(prompt: string, systemMessage: string, maxTokens: number = 3000): Promise<string> {
-    return this.makeAICall(prompt, systemMessage, 'general')
-  }
-
-  // AI服务1：技能推荐
   async generateSkillRecommendations(
     personalInfo: PersonalInfo, 
-    education: Education[],
-    targetJobTitle: string
-  ): Promise<SkillRecommendation[]> {
+    education: Education[]
+  ): Promise<RecommendedSkill[]> {
+    const prompt = this.buildSkillRecommendationPrompt(personalInfo, education)
+    
     try {
-      const educationText = education.map(edu => `${edu.degree} ${edu.major}`).join('、')
-      
-      const prompt = `基于以下信息推荐8-10个技能：
+      const content = await this.callAIFunction(
+        prompt,
+        '你是一个专业的HR和职业规划师，专门帮助求职者分析他们的背景并推荐合适的技能。请根据用户的教育背景和个人信息，推荐8-10个最相关的技能。',
+        'skills',
+        2000
+      )
+
+      return this.parseSkillRecommendations(content)
+    } catch (error) {
+      console.error('AI技能推荐失败，使用备选方案:', error)
+      return this.getFallbackRecommendations(education)
+    }
+  }
+
+  // 新增：通用AI调用方法（供其他组件使用）
+  async callAI(prompt: string, systemMessage: string, maxTokens: number = 3000): Promise<string> {
+    return this.callAIFunction(prompt, systemMessage, 'general', maxTokens)
+  }
+
+  private buildSkillRecommendationPrompt(personalInfo: PersonalInfo, education: Education[]): string {
+    const educationText = education.map(edu => 
+      `${edu.degree} - ${edu.major} (${edu.school})`
+    ).join(', ')
+
+    return `请为以下求职者推荐技能：
 
 个人信息：
-- 目标职位：${targetJobTitle}
+- 姓名：${personalInfo.name}
+- 职位目标：${personalInfo.title || '未指定'}
 - 教育背景：${educationText}
+- 个人简介：${personalInfo.summary || '无'}
 
-要求按JSON格式返回：
+请按照以下JSON格式返回8-10个技能推荐：
+
 [
   {
-    "skill": "技能名称",
-    "level": "understand|proficient|expert",
-    "category": "技能分类",
-    "description": "具体应用描述",
-    "value_proposition": "价值主张",
-    "priority": "high|medium|low",
-    "selected": true,
-    "salaryImpact": "提升15-30%",
-    "learningTime": "1-3个月",
-    "trend": "rising|stable|declining"
+    "name": "Java",
+    "level": "advanced",
+    "category": "编程语言",
+    "description": "企业级应用开发",
+    "reason": "计算机专业核心技能",
+    "selected": true
   }
 ]
 
-前6个技能设置selected为true。`
+要求：
+1. level只能是: beginner, intermediate, advanced, expert
+2. 前5个技能设置selected为true，其余为false
+3. 必须返回有效的JSON数组格式
 
-      const systemMessage = '你是专业的职业规划师，根据用户背景推荐相关技能。必须返回有效的JSON数组格式。'
-      
-      const content = await this.makeAICall(prompt, systemMessage, 'skill_recommendation')
-      const skills = this.parseSkillRecommendations(content)
-      
-      // 发送事件
-      this.eventBus.emit('skills.updated', skills)
-      
-      return skills
-    } catch (error) {
-      console.error('技能推荐失败:', error)
-      throw error
-    }
+JSON:`
   }
 
-  // AI服务2：工作经历优化
-  async optimizeWorkExperience(
-    workExperience: Experience[],
-    targetJobTitle: string,
-    personalInfo: PersonalInfo
-  ): Promise<AchievementItem[]> {
+  private parseSkillRecommendations(content: string): RecommendedSkill[] {
     try {
-      const experienceText = workExperience.map(exp => `
-${exp.position} @ ${exp.company}
-描述：${exp.description}
-成就：${exp.achievements?.join('；') || '无'}
-`).join('\n')
-
-      const prompt = `优化以下工作经历为量化成就：
-
-目标职位：${targetJobTitle}
-工作经历：${experienceText}
-
-返回JSON格式：
-[
-  {
-    "content": "量化成就描述",
-    "metrics": {
-      "type": "percentage|absolute|qualitative",
-      "value": "具体数值",
-      "confidence": 0.8
-    },
-    "relevance": {
-      "target_job_title": "${targetJobTitle}",
-      "score": 0.9
-    },
-    "tags": ["相关标签"]
-  }
-]`
-
-      const systemMessage = '你是简历写作专家，将工作经历转化为量化成就。避免夸张数字，确保真实可信。'
+      let jsonString = content.trim()
+      const jsonMatch = content.match(/\[[\s\S]*\]/)
+      if (jsonMatch) {
+        jsonString = jsonMatch[0]
+      }
+      jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
       
-      const content = await this.makeAICall(prompt, systemMessage, 'work_optimization')
-      const achievements = this.parseAchievements(content)
-      
-      // 发送事件
-      this.eventBus.emit('work_achievements.updated', achievements)
-      
-      return achievements
-    } catch (error) {
-      console.error('工作经历优化失败:', error)
-      throw error
-    }
-  }
-
-  // AI服务3：项目经历美化
-  async beautifyProjectExperience(
-    projects: Project[],
-    targetJobTitle: string,
-    personalInfo: PersonalInfo
-  ): Promise<AchievementItem[]> {
-    try {
-      const projectText = projects.map(proj => `
-项目：${proj.name}
-角色：${proj.role}
-描述：${proj.description}
-技术：${proj.technologies}
-`).join('\n')
-
-      const prompt = `美化以下项目经历：
-
-目标职位：${targetJobTitle}
-项目经历：${projectText}
-
-返回量化项目成就的JSON格式，突出技术价值和业务影响。`
-
-      const systemMessage = '你是项目成就提炼专家，将项目经历量化，突出技术价值。'
-      
-      const content = await this.makeAICall(prompt, systemMessage, 'project_beautification')
-      const achievements = this.parseAchievements(content)
-      
-      // 发送事件
-      this.eventBus.emit('project_achievements.updated', achievements)
-      
-      return achievements
-    } catch (error) {
-      console.error('项目经历美化失败:', error)
-      throw error
-    }
-  }
-
-  // 解析技能推荐
-  private parseSkillRecommendations(content: string): SkillRecommendation[] {
-    try {
-      const jsonString = this.extractJSON(content)
       const skills = JSON.parse(jsonString)
       
       if (!Array.isArray(skills)) {
@@ -257,157 +152,271 @@ ${exp.position} @ ${exp.company}
       }
 
       return skills.map((skill: any, index: number) => ({
-        id: `skill-${Date.now()}-${index}`,
-        skill: skill.skill || `技能${index + 1}`,
-        level: ['understand', 'proficient', 'expert'].includes(skill.level) 
-          ? skill.level : 'proficient',
+        name: skill.name || `技能${index + 1}`,
+        level: ['beginner', 'intermediate', 'advanced', 'expert'].includes(skill.level) 
+          ? skill.level 
+          : 'intermediate',
         category: skill.category || '通用技能',
         description: skill.description || '',
-        value_proposition: skill.value_proposition || '',
-        priority: ['high', 'medium', 'low'].includes(skill.priority) 
-          ? skill.priority : 'medium',
-        selected: skill.selected === true || index < 6,
-        salaryImpact: skill.salaryImpact || '有助提升',
-        learningTime: skill.learningTime || '1-3个月',
-        trend: ['rising', 'stable', 'declining'].includes(skill.trend) 
-          ? skill.trend : 'stable'
+        reason: skill.reason || '',
+        selected: skill.selected === true || index < 5
       })).slice(0, 10)
-    } catch (error) {
-      console.error('解析技能推荐失败:', error)
-      return this.getFallbackSkills()
-    }
-  }
-
-  // 解析成就
-  private parseAchievements(content: string): AchievementItem[] {
-    try {
-      const jsonString = this.extractJSON(content)
-      const achievements = JSON.parse(jsonString)
       
-      if (!Array.isArray(achievements)) {
-        throw new Error('返回的不是数组格式')
-      }
-
-      return achievements.map((ach: any, index: number) => ({
-        id: `achievement-${Date.now()}-${index}`,
-        content: ach.content || '重要成就',
-        metrics: {
-          type: ach.metrics?.type || 'qualitative',
-          value: ach.metrics?.value || '显著改善',
-          confidence: ach.metrics?.confidence || 0.7
-        },
-        relevance: {
-          target_job_title: ach.relevance?.target_job_title || '通用',
-          score: ach.relevance?.score || 0.8
-        },
-        tags: ach.tags || ['工作成就']
-      }))
     } catch (error) {
-      console.error('解析成就失败:', error)
-      return []
+      console.error('解析AI返回内容失败:', error)
+      throw error
     }
   }
 
-  // 提取JSON字符串
-  private extractJSON(content: string): string {
-    const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      return jsonMatch[0]
+  private getFallbackRecommendations(education: Education[]): RecommendedSkill[] {
+    const major = education[0]?.major || ''
+    
+    const fallbackSkills: Record<string, RecommendedSkill[]> = {
+      '计算机科学与技术': [
+        {
+          name: 'Java',
+          level: 'advanced',
+          category: '编程语言',
+          description: '企业级应用开发的主流语言',
+          reason: '计算机专业核心技能，市场需求量大',
+          selected: true
+        },
+        {
+          name: 'Python',
+          level: 'intermediate',
+          category: '编程语言',
+          description: '数据处理和Web开发',
+          reason: '应用范围广泛，容易上手',
+          selected: true
+        },
+        {
+          name: 'React',
+          level: 'intermediate',
+          category: '前端框架',
+          description: '现代前端界面开发',
+          reason: '前端开发主流框架',
+          selected: true
+        },
+        {
+          name: 'MySQL',
+          level: 'intermediate',
+          category: '数据库',
+          description: '关系型数据库设计',
+          reason: '后端开发必备技能',
+          selected: true
+        },
+        {
+          name: 'Git',
+          level: 'intermediate',
+          category: '版本控制',
+          description: '代码版本管理',
+          reason: '团队开发必备',
+          selected: true
+        }
+      ],
+      '默认': [
+        {
+          name: 'Microsoft Office',
+          level: 'intermediate',
+          category: '办公软件',
+          description: 'Office办公套件',
+          reason: '职场基础技能',
+          selected: true
+        },
+        {
+          name: '沟通协调',
+          level: 'intermediate',
+          category: '软技能',
+          description: '团队协作能力',
+          reason: '职场必备能力',
+          selected: true
+        },
+        {
+          name: '项目管理',
+          level: 'beginner',
+          category: '管理技能',
+          description: '项目计划执行',
+          reason: '职业发展技能',
+          selected: true
+        },
+        {
+          name: '数据分析',
+          level: 'beginner',
+          category: '分析技能',
+          description: '数据处理分析',
+          reason: '现代工作技能',
+          selected: true
+        },
+        {
+          name: '英语',
+          level: 'intermediate',
+          category: '语言技能',
+          description: '商务英语能力',
+          reason: '国际化需求',
+          selected: true
+        }
+      ]
     }
-    return content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  }
 
-  // 备选技能
-  private getFallbackSkills(): SkillRecommendation[] {
-    return [
-      {
-        id: 'fallback-1',
-        skill: 'Microsoft Office',
-        level: 'proficient',
-        category: '办公软件',
-        description: '熟练使用Word、Excel、PowerPoint等办公软件',
-        value_proposition: '提高日常工作效率',
-        priority: 'high',
-        selected: true,
-        salaryImpact: '基础技能',
-        learningTime: '1个月',
-        trend: 'stable'
-      },
-      {
-        id: 'fallback-2',
-        skill: '沟通协调',
-        level: 'proficient',
-        category: '软技能',
-        description: '良好的沟通表达和团队协作能力',
-        value_proposition: '促进团队合作',
-        priority: 'high',
-        selected: true,
-        salaryImpact: '软技能',
-        learningTime: '持续提升',
-        trend: 'rising'
-      },
-      {
-        id: 'fallback-3',
-        skill: '数据分析',
-        level: 'understand',
-        category: '分析技能',
-        description: '基础的数据处理和分析能力',
-        value_proposition: '支持决策制定',
-        priority: 'medium',
-        selected: true,
-        salaryImpact: '提升10-20%',
-        learningTime: '2-3个月',
-        trend: 'rising'
-      }
-    ]
+    return fallbackSkills[major] || fallbackSkills['默认']
   }
 }
 
-// 简化的成就融合引擎
-class SimpleAchievementFusionEngine {
-  async fuseAchievements(
-    skills: SkillRecommendation[],
-    workAchievements: AchievementItem[],
-    projectAchievements: AchievementItem[],
-    targetJobTitle: string
-  ): Promise<AchievementItem[]> {
-    console.log('[融合引擎] 处理成就...')
-    
-    // 合并所有成就
-    const allAchievements = [...workAchievements, ...projectAchievements]
-    
-    // 简单去重
-    const uniqueAchievements = this.removeDuplicates(allAchievements)
-    
-    // 按相关性排序并取前8个
-    const sortedAchievements = uniqueAchievements
-      .sort((a, b) => b.relevance.score - a.relevance.score)
-      .slice(0, 8)
-    
-    console.log('[融合引擎] 完成，输出', sortedAchievements.length, '项成就')
-    return sortedAchievements
-  }
+// 创建单例实例
+const createAIService = (): AIService => {
+  return new AIService()
+}
 
-  private removeDuplicates(achievements: AchievementItem[]): AchievementItem[] {
-    const seen = new Set<string>()
-    return achievements.filter(ach => {
-      const key = ach.content.slice(0, 30)
-      if (seen.has(key)) {
-        return false
-      }
-      seen.add(key)
-      return true
-    })
+export { AIService, createAIService }
+export type { RecommendedSkill }
+
+// ============================================
+// 3. 更新 EnhancedAISkillRecommendation.tsx 中的 callAIService
+// ============================================
+
+// 在 EnhancedAISkillRecommendation.tsx 文件中，替换 callAIService 函数：
+
+import { createAIService } from '../utils/aiService'
+
+// 在组件内部：
+const aiService = createAIService()
+
+// 替换原来的 callAIService 函数调用为：
+const callAIService = async (prompt: string, systemMessage: string) => {
+  return await aiService.callAI(prompt, systemMessage)
+}
+
+// 生成AI技能推荐 - 使用新的服务
+const generateAISkillRecommendations = async () => {
+  try {
+    setAiError(null)
+    const skills = await aiService.generateSkillRecommendations(personalInfo, education)
+    setRecommendedSkills(skills.map(skill => ({
+      ...skill,
+      priority: 'high' as const,
+      salaryImpact: '提升15-30%',
+      learningTime: '1-3个月',
+      trend: 'rising' as const
+    })))
+  } catch (error) {
+    console.error('AI技能推荐失败:', error)
+    setAiError('AI推荐服务暂时不可用，使用智能备选推荐')
+    const fallbackSkills = getIntelligentFallbackSkills()
+    setRecommendedSkills(fallbackSkills)
   }
 }
 
-// 导出实例
-export const eventBus = new SimpleEventBus()
-export const aiService = new AIService(eventBus)
-export const achievementFusionEngine = new SimpleAchievementFusionEngine()
+// ============================================
+// 4. 更新 EnhancedSkillSuggestions.tsx
+// ============================================
 
-// 向后兼容
-export const createAIService = () => aiService
+import React, { useState } from 'react'
+import { Lightbulb, Loader2, Plus, Sparkles } from 'lucide-react'
+import { ResumeData } from '../App'
+import { createAIService } from '../utils/aiService'
 
-export { AIService }
-export type { SkillRecommendation, AchievementItem }
+interface SkillSuggestion {
+  skill: string
+  reason: string
+  category: string
+}
+
+interface EnhancedSkillSuggestionsProps {
+  resumeData: ResumeData
+  onAddSkill: (skill: string) => void
+}
+
+const EnhancedSkillSuggestions: React.FC<EnhancedSkillSuggestionsProps> = ({ 
+  resumeData, 
+  onAddSkill 
+}) => {
+  const [suggestions, setSuggestions] = useState<SkillSuggestion[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  const aiService = createAIService()
+
+  const generateSkillSuggestions = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const resumeSummary = {
+        experience: resumeData.experience.map(exp => 
+          `${exp.position}在${exp.company}: ${exp.description}`
+        ).join('\n'),
+        projects: resumeData.projects.map(proj => 
+          `${proj.name}: ${proj.description} 技术栈: ${proj.technologies}`
+        ).join('\n'),
+        currentSkills: resumeData.skills || ''
+      }
+
+      const prompt = `工作经历：${resumeSummary.experience}\n\n项目经验：${resumeSummary.projects}\n\n现有技能：${resumeSummary.currentSkills}\n\n请推荐相关技能。`
+      
+      const systemMessage = '你是一个专业的职业规划师。基于用户的工作经历和项目经验，推荐5-6个最有价值的技能。请以JSON数组格式返回，每个技能包含skill(技能名称)、reason(推荐理由)、category(技能分类)三个字段。'
+
+      const content = await aiService.callAI(prompt, systemMessage, 1000)
+      
+      // 解析返回的JSON
+      try {
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        const jsonContent = jsonMatch ? jsonMatch[0] : content
+        const parsedSuggestions = JSON.parse(jsonContent)
+        setSuggestions(parsedSuggestions.slice(0, 6))
+      } catch (parseError) {
+        throw new Error('解析AI响应失败')
+      }
+      
+    } catch (error) {
+      console.error('生成技能建议失败:', error)
+      setError(error instanceof Error ? error.message : '生成失败')
+      
+      // 提供默认建议
+      const fallbackSuggestions = [
+        { skill: 'React', reason: '流行的前端框架，市场需求大', category: '前端框架' },
+        { skill: 'Node.js', reason: '服务端JavaScript运行环境', category: '后端技术' },
+        { skill: 'Python', reason: '多用途编程语言，AI/数据分析热门', category: '编程语言' },
+        { skill: 'SQL', reason: '数据库查询语言，数据处理必备', category: '数据库' },
+        { skill: 'Git', reason: '版本控制工具，开发必备技能', category: '开发工具' }
+      ]
+      setSuggestions(fallbackSuggestions)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddSkill = (skill: string) => {
+    onAddSkill(skill)
+    setSuggestions(prev => prev.filter(s => s.skill !== skill))
+  }
+
+  // ... 组件的其余部分保持不变
+}
+
+// ============================================
+// 5. package.json 添加 Netlify CLI（用于本地测试）
+// ============================================
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "netlify": "netlify dev"  // 新增：本地测试Netlify Functions
+  },
+  "devDependencies": {
+    // ... 其他依赖
+    "netlify-cli": "^17.0.0"  // 新增
+  }
+}
+
+// ============================================
+// 6. 本地测试命令
+// ============================================
+// 安装 Netlify CLI
+npm install -D netlify-cli
+
+// 本地运行（会同时启动Vite和Functions）
+npm run netlify
+
+// 或者直接运行
+netlify dev

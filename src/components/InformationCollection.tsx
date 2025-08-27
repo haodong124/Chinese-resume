@@ -124,6 +124,11 @@ const InformationCollection: React.FC<InformationCollectionProps> = ({
     technologies: '',
     link: ''
   })
+  
+  // 项目相关的AI状态
+  const [isOptimizingProjectDescription, setIsOptimizingProjectDescription] = useState(false)
+  const [isGeneratingTechStack, setIsGeneratingTechStack] = useState(false)
+  const [isGeneratingProjectAchievements, setIsGeneratingProjectAchievements] = useState(false)
 
   // 语言能力
   const [languages, setLanguages] = useState<Language[]>(initialData?.languages || [])
@@ -305,6 +310,168 @@ ${experienceContext}
     setIsOptimizingDescription(false)
   }
 
+  // AI优化项目描述
+  const optimizeProjectDescription = async () => {
+    if (!currentProject.description.trim()) {
+      alert('请先填写项目描述')
+      return
+    }
+    
+    setIsOptimizingProjectDescription(true)
+    try {
+      const prompt = `
+请优化以下项目描述，使其更专业、更有吸引力：
+
+原始描述：${currentProject.description}
+
+项目信息：
+- 项目名称：${currentProject.name}
+- 担任角色：${currentProject.role}
+- 技术栈：${currentProject.technologies}
+
+优化要求：
+1. 突出项目的技术亮点和创新点
+2. 体现项目的实际价值和影响力
+3. 说明个人在项目中的具体贡献
+4. 使用专业术语，避免口语化表达
+5. 100-200字左右，结构清晰
+6. 包含项目背景、技术方案、个人贡献、项目成果
+
+请直接返回优化后的项目描述：`
+
+      const systemMessage = '你是专业的技术简历优化专家，擅长将项目经历描述得专业且有吸引力，突出技术价值和个人贡献。'
+      
+      const optimizedDescription = await callAIService(prompt, systemMessage)
+      setCurrentProject(prev => ({
+        ...prev,
+        description: optimizedDescription.trim()
+      }))
+    } catch (error) {
+      console.error('优化失败:', error)
+      alert('AI优化暂时不可用')
+    }
+    setIsOptimizingProjectDescription(false)
+  }
+
+  // AI推荐技术栈
+  const generateTechStack = async () => {
+    if (!currentProject.name || !currentProject.description) {
+      alert('请先填写项目名称和描述')
+      return
+    }
+    
+    setIsGeneratingTechStack(true)
+    try {
+      const prompt = `
+基于以下项目信息，推荐合适的技术栈：
+
+项目名称：${currentProject.name}
+项目角色：${currentProject.role}
+项目描述：${currentProject.description}
+已有技术栈：${currentProject.technologies || '无'}
+
+请推荐5-8个最相关的技术/工具/框架，用英文逗号分隔，例如：
+React, TypeScript, Node.js, MongoDB, Docker, Git
+
+要求：
+1. 技术栈要与项目描述相符
+2. 包含前端、后端、数据库、工具等不同层面
+3. 优先列出主流和热门技术
+4. 如果已有技术栈，进行补充和完善
+
+直接返回技术栈列表，用逗号和空格分隔：`
+
+      const systemMessage = '你是技术栈推荐专家，了解各种技术的应用场景和最佳实践。'
+      
+      const suggestedTech = await callAIService(prompt, systemMessage)
+      setCurrentProject(prev => ({
+        ...prev,
+        technologies: suggestedTech.trim()
+      }))
+    } catch (error) {
+      console.error('生成失败:', error)
+      alert('AI推荐暂时不可用')
+    }
+    setIsGeneratingTechStack(false)
+  }
+
+  // AI生成项目成就
+  const generateProjectAchievements = async () => {
+    if (!currentProject.name || !currentProject.description) {
+      alert('请先填写项目名称和描述')
+      return
+    }
+    
+    setIsGeneratingProjectAchievements(true)
+    try {
+      const prompt = `
+基于以下项目信息，生成3-5个量化的项目成就和亮点：
+
+项目信息：
+- 项目名称：${currentProject.name}
+- 担任角色：${currentProject.role}
+- 项目描述：${currentProject.description}
+- 技术栈：${currentProject.technologies || '未指定'}
+- 个人背景：${personalInfo.title || '未指定'}
+
+要求：
+1. 每个成就都要有具体的数字或量化指标
+2. 突出技术创新和业务价值
+3. 体现个人的技术能力和贡献
+4. 适合${currentProject.role}这个角色的能力范围
+5. 包含以下类型：
+   - 性能优化（提升XX%性能、减少XX%加载时间）
+   - 功能实现（完成XX个模块、实现XX项功能）
+   - 用户价值（服务XX用户、提升XX体验）
+   - 技术创新（采用XX新技术、解决XX技术难题）
+
+请以JSON数组格式返回：
+["成就1", "成就2", "成就3", "成就4"]
+
+示例：
+["实现响应式设计，支持5种设备尺寸，覆盖98%用户场景", "优化首屏加载时间至1.5秒内，性能提升40%", "独立完成3个核心模块开发，代码复用率达70%", "项目获得1000+用户使用，日活跃用户200+"]`
+
+      const systemMessage = '你是项目成就提炼专家，擅长将项目经历量化，突出技术价值和业务影响。'
+      
+      const content = await callAIService(prompt, systemMessage)
+      
+      try {
+        let jsonString = content.trim()
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          jsonString = jsonMatch[0]
+        }
+        const achievements = JSON.parse(jsonString)
+        
+        if (Array.isArray(achievements)) {
+          // 将成就添加到项目描述中
+          const achievementText = '\n\n项目成就：\n' + achievements.map((a, i) => `${i + 1}. ${a}`).join('\n')
+          setCurrentProject(prev => ({
+            ...prev,
+            description: prev.description + achievementText
+          }))
+        }
+      } catch (parseError) {
+        console.error('解析失败:', parseError)
+        // 提供备选成就
+        const fallbackAchievements = [
+          `成功完成${currentProject.name}的开发工作`,
+          `掌握并应用${currentProject.technologies || '相关'}技术栈`,
+          '按时交付项目，质量达到预期标准',
+          '获得团队和用户的积极反馈'
+        ]
+        const achievementText = '\n\n项目成就：\n' + fallbackAchievements.map((a, i) => `${i + 1}. ${a}`).join('\n')
+        setCurrentProject(prev => ({
+          ...prev,
+          description: prev.description + achievementText
+        }))
+      }
+    } catch (error) {
+      console.error('生成失败:', error)
+      alert('AI生成暂时不可用')
+    }
+    setIsGeneratingProjectAchievements(false)
+  }
   // 日期选择辅助
   const generateYears = () => {
     const currentYear = new Date().getFullYear()
@@ -857,389 +1024,556 @@ ${experienceContext}
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                     <Star className="h-5 w-5 text-yellow-500 mr-2" />
                     工作成就（量化展示价值）
-                 </h3>
-                 <button
-                   onClick={generateAIAchievements}
-                   disabled={!currentExperience.company || !currentExperience.position || !currentExperience.description || isGeneratingAchievements}
-                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                     currentExperience.company && currentExperience.position && currentExperience.description && !isGeneratingAchievements
-                       ? 'bg-green-600 text-white hover:bg-green-700'
-                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                   }`}
-                 >
-                   <Sparkles className={`h-4 w-4 ${isGeneratingAchievements ? 'animate-spin' : ''}`} />
-                   <span>{isGeneratingAchievements ? 'AI生成中...' : 'AI智能生成成就'}</span>
-                 </button>
-               </div>
-               
-               <div className="mb-4">
-                 <div className="flex gap-2">
-                   <input
-                     type="text"
-                     value={currentAchievement}
-                     onChange={(e) => setCurrentAchievement(e.target.value)}
-                     onKeyPress={(e) => e.key === 'Enter' && handleAddAchievement()}
-                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                     placeholder="如：协助团队完成5个重要项目，项目按时交付率达100%"
-                   />
-                   <button
-                     onClick={handleAddAchievement}
-                     disabled={!currentAchievement.trim()}
-                     className={`px-4 py-2 rounded-lg transition-colors ${
-                       currentAchievement.trim()
-                         ? 'bg-green-600 text-white hover:bg-green-700'
-                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                     }`}
-                   >
-                     添加
-                   </button>
-                 </div>
-                 <div className="flex items-center mt-2 text-sm text-green-700">
-                   <Target className="h-4 w-4 mr-1" />
-                   <span>建议包含具体数字：完成X个项目、提升X%效率、服务X位客户等</span>
-                 </div>
-               </div>
-               
-               {currentExperience.achievements && currentExperience.achievements.length > 0 && (
-                 <div className="space-y-2">
-                   <h4 className="font-medium text-gray-900 mb-3">已添加的成就：</h4>
-                   {currentExperience.achievements.map((achievement, index) => (
-                     <div key={index} className="flex items-start justify-between bg-white p-3 rounded-lg border border-green-200">
-                       <div className="flex-1">
-                         <div className="flex items-center space-x-2 mb-1">
-                           <TrendingUp className="h-4 w-4 text-green-600" />
-                           <span className="text-sm font-medium text-green-800">成就 {index + 1}</span>
-                         </div>
-                         <p className="text-sm text-gray-700">{achievement}</p>
-                       </div>
-                       <button
-                         onClick={() => handleRemoveAchievement(index)}
-                         className="text-red-500 hover:text-red-700 ml-2"
-                       >
-                         <Trash2 className="h-4 w-4" />
-                       </button>
-                     </div>
-                   ))}
-                 </div>
-               )}
-               
-               {currentExperience.achievements?.length === 0 && (
-                 <div className="text-center py-8 text-gray-500">
-                   <Star className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                   <p className="mb-2">还没有添加工作成就</p>
-                   <p className="text-sm">点击"AI智能生成成就"或手动添加量化成就</p>
-                 </div>
-               )}
-             </div>
+                  </h3>
+                  <button
+                    onClick={generateAIAchievements}
+                    disabled={!currentExperience.company || !currentExperience.position || !currentExperience.description || isGeneratingAchievements}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      currentExperience.company && currentExperience.position && currentExperience.description && !isGeneratingAchievements
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Sparkles className={`h-4 w-4 ${isGeneratingAchievements ? 'animate-spin' : ''}`} />
+                    <span>{isGeneratingAchievements ? 'AI生成中...' : 'AI智能生成成就'}</span>
+                  </button>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={currentAchievement}
+                      onChange={(e) => setCurrentAchievement(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddAchievement()}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      placeholder="如：协助团队完成5个重要项目，项目按时交付率达100%"
+                    />
+                    <button
+                      onClick={handleAddAchievement}
+                      disabled={!currentAchievement.trim()}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        currentAchievement.trim()
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      添加
+                    </button>
+                  </div>
+                  <div className="flex items-center mt-2 text-sm text-green-700">
+                    <Target className="h-4 w-4 mr-1" />
+                    <span>建议包含具体数字：完成X个项目、提升X%效率、服务X位客户等</span>
+                  </div>
+                </div>
+                
+                {currentExperience.achievements && currentExperience.achievements.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900 mb-3">已添加的成就：</h4>
+                    {currentExperience.achievements.map((achievement, index) => (
+                      <div key={index} className="flex items-start justify-between bg-white p-3 rounded-lg border border-green-200">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">成就 {index + 1}</span>
+                          </div>
+                          <p className="text-sm text-gray-700">{achievement}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveAchievement(index)}
+                          className="text-red-500 hover:text-red-700 ml-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {currentExperience.achievements?.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Star className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p className="mb-2">还没有添加工作成就</p>
+                    <p className="text-sm">点击"AI智能生成成就"或手动添加量化成就</p>
+                  </div>
+                )}
+              </div>
 
-             <div className="flex justify-center">
-               <button
-                 onClick={handleAddExperience}
-                 disabled={!currentExperience.company || !currentExperience.position || !currentExperience.duration}
-                 className={`px-8 py-3 rounded-lg font-medium transition-colors ${
-                   currentExperience.company && currentExperience.position && currentExperience.duration
-                     ? 'bg-blue-600 text-white hover:bg-blue-700'
-                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                 }`}
-               >
-                 {editingExperienceId ? '更新工作经历' : '添加工作经历'}
-               </button>
-             </div>
-           </div>
+              <div className="flex justify-center">
+                <button
+                  onClick={handleAddExperience}
+                  disabled={!currentExperience.company || !currentExperience.position || !currentExperience.duration}
+                  className={`px-8 py-3 rounded-lg font-medium transition-colors ${
+                    currentExperience.company && currentExperience.position && currentExperience.duration
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {editingExperienceId ? '更新工作经历' : '添加工作经历'}
+                </button>
+              </div>
+            </div>
 
-           {experience.length > 0 && (
-             <div className="space-y-4">
-               <div className="flex items-center justify-between">
-                 <h3 className="text-xl font-semibold text-gray-900">已添加的工作经历</h3>
-                 <div className="text-sm text-gray-500">
-                   共 {experience.length} 段经历，其中 {experience.filter(e => e.isInternship).length} 段实习
-                 </div>
-               </div>
-               
-               {experience.map((exp) => (
-                 <div key={exp.id} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
-                   <div className="flex justify-between items-start mb-4">
-                     <div className="flex-1">
-                       <div className="flex items-center gap-3 mb-2">
-                         <h4 className="text-lg font-bold text-gray-900">{exp.position}</h4>
-                         {exp.isInternship && (
-                           <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full font-medium">
-                             实习经历
-                           </span>
-                         )}
-                       </div>
-                       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                         <div className="flex items-center">
-                           <Building className="h-4 w-4 mr-1" />
-                           <span className="font-medium">{exp.company}</span>
-                         </div>
-                         <div className="flex items-center">
-                           <Calendar className="h-4 w-4 mr-1" />
-                           <span>{exp.duration}</span>
-                         </div>
-                       </div>
-                       <p className="text-gray-700 mb-4 leading-relaxed">{exp.description}</p>
-                       
-                       {exp.achievements && exp.achievements.length > 0 && (
-                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                           <h5 className="text-sm font-semibold text-green-900 mb-3 flex items-center">
-                             <Award className="h-4 w-4 mr-1" />
-                             主要成就 ({exp.achievements.length} 项)
-                           </h5>
-                           <div className="space-y-2">
-                             {exp.achievements.map((achievement, index) => (
-                               <div key={index} className="flex items-start space-x-2">
-                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                 <span className="text-sm text-green-800">{achievement}</span>
-                               </div>
-                             ))}
-                           </div>
-                         </div>
-                       )}
-                     </div>
-                     
-                     <div className="flex flex-col space-y-2 ml-4">
-                       <button
-                         onClick={() => {
-                           setCurrentExperience(exp)
-                           setEditingExperienceId(exp.id)
-                         }}
-                         className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                         title="编辑经历"
-                       >
-                         <Edit3 className="h-5 w-5" />
-                       </button>
-                       <button
-                         onClick={() => setExperience(prev => prev.filter(e => e.id !== exp.id))}
-                         className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                         title="删除经历"
-                       >
-                         <Trash2 className="h-5 w-5" />
-                       </button>
-                     </div>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           )}
-         </div>
-       )
+            {experience.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold text-gray-900">已添加的工作经历</h3>
+                  <div className="text-sm text-gray-500">
+                    共 {experience.length} 段经历，其中 {experience.filter(e => e.isInternship).length} 段实习
+                  </div>
+                </div>
+                
+                {experience.map((exp) => (
+                  <div key={exp.id} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h4 className="text-lg font-bold text-gray-900">{exp.position}</h4>
+                          {exp.isInternship && (
+                            <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full font-medium">
+                              实习经历
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                          <div className="flex items-center">
+                            <Building className="h-4 w-4 mr-1" />
+                            <span className="font-medium">{exp.company}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            <span>{exp.duration}</span>
+                          </div>
+                        </div>
+                        <p className="text-gray-700 mb-4 leading-relaxed">{exp.description}</p>
+                        
+                        {exp.achievements && exp.achievements.length > 0 && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-green-900 mb-3 flex items-center">
+                              <Award className="h-4 w-4 mr-1" />
+                              主要成就 ({exp.achievements.length} 项)
+                            </h5>
+                            <div className="space-y-2">
+                              {exp.achievements.map((achievement, index) => (
+                                <div key={index} className="flex items-start space-x-2">
+                                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                  <span className="text-sm text-green-800">{achievement}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col space-y-2 ml-4">
+                        <button
+                          onClick={() => {
+                            setCurrentExperience(exp)
+                            setEditingExperienceId(exp.id)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="编辑经历"
+                        >
+                          <Edit3 className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => setExperience(prev => prev.filter(e => e.id !== exp.id))}
+                          className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="删除经历"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
 
-     case 'projects':
-       return (
-         <div className="space-y-6">
-           <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-             <FolderOpen className="mr-2 h-6 w-6 text-blue-600" />
-             项目经历
-           </h2>
-           
-           <div className="space-y-4">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <input
-                 type="text"
-                 value={currentProject.name}
-                 onChange={(e) => setCurrentProject(prev => ({ ...prev, name: e.target.value }))}
-                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                 placeholder="项目名称 *"
-               />
-               <input
-                 type="text"
-                 value={currentProject.role}
-                 onChange={(e) => setCurrentProject(prev => ({ ...prev, role: e.target.value }))}
-                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                 placeholder="担任角色 *"
-               />
-               <input
-                 type="text"
-                 value={currentProject.duration}
-                 onChange={(e) => setCurrentProject(prev => ({ ...prev, duration: e.target.value }))}
-                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                 placeholder="项目时间"
-               />
-               <input
-                 type="url"
-                 value={currentProject.link}
-                 onChange={(e) => setCurrentProject(prev => ({ ...prev, link: e.target.value }))}
-                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                 placeholder="项目链接（选填）"
-               />
-             </div>
-             
-             <textarea
-               value={currentProject.description}
-               onChange={(e) => setCurrentProject(prev => ({ ...prev, description: e.target.value }))}
-               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-               rows={4}
-               placeholder="项目描述"
-             />
-             
-             <input
-               type="text"
-               value={currentProject.technologies}
-               onChange={(e) => setCurrentProject(prev => ({ ...prev, technologies: e.target.value }))}
-               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-               placeholder="技术栈（如：React, Node.js, MongoDB）"
-             />
-             
-             <button
-               onClick={handleAddProject}
-               disabled={!currentProject.name || !currentProject.role}
-               className={`px-4 py-2 rounded-lg ${
-                 currentProject.name && currentProject.role
-                   ? 'bg-blue-600 text-white hover:bg-blue-700'
-                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-               }`}
-             >
-               {editingProjectId ? '更新项目' : '添加项目'}
-             </button>
-           </div>
+      case 'projects':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                <FolderOpen className="mr-2 h-6 w-6 text-blue-600" />
+                项目经历
+              </h2>
+              <div className="text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg flex items-center">
+                <Sparkles className="h-4 w-4 mr-1" />
+                AI智能优化
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              {/* 基本信息 */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">项目信息</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      项目名称 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={currentProject.name}
+                      onChange={(e) => setCurrentProject(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      placeholder="如：智能简历生成系统"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      担任角色 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={currentProject.role}
+                      onChange={(e) => setCurrentProject(prev => ({ ...prev, role: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      placeholder="如：前端开发、项目负责人、全栈开发"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      项目时间
+                    </label>
+                    <input
+                      type="text"
+                      value={currentProject.duration}
+                      onChange={(e) => setCurrentProject(prev => ({ ...prev, duration: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      placeholder="如：2023年6月 - 2023年9月"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      项目链接（可选）
+                    </label>
+                    <input
+                      type="url"
+                      value={currentProject.link}
+                      onChange={(e) => setCurrentProject(prev => ({ ...prev, link: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      placeholder="https://github.com/username/project"
+                    />
+                  </div>
+                </div>
+              </div>
 
-           {projects.length > 0 && (
-             <div className="space-y-3">
-               <h3 className="font-semibold text-gray-900">已添加的项目</h3>
-               {projects.map((project) => (
-                 <div key={project.id} className="bg-gray-50 rounded-lg p-4 flex justify-between">
-                   <div className="flex-1">
-                     <h4 className="font-semibold">{project.name}</h4>
-                     <p className="text-gray-600">{project.role} · {project.duration}</p>
-                     <p className="text-gray-700 mt-2">{project.description}</p>
-                     {project.technologies && (
-                       <p className="text-sm text-gray-600 mt-1">
-                         <span className="font-medium">技术栈：</span> {project.technologies}
-                       </p>
-                     )}
-                   </div>
-                   <div className="flex space-x-2 ml-4">
-                     <button
-                       onClick={() => {
-                         setCurrentProject(project)
-                         setEditingProjectId(project.id)
-                       }}
-                       className="text-blue-600 hover:text-blue-800"
-                     >
-                       <Edit3 className="h-4 w-4" />
-                     </button>
-                     <button
-                       onClick={() => setProjects(prev => prev.filter(p => p.id !== project.id))}
-                       className="text-red-600 hover:text-red-800"
-                     >
-                       <Trash2 className="h-4 w-4" />
-                     </button>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           )}
-         </div>
-       )
+              {/* 项目描述 - 添加AI优化功能 */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">项目描述</h3>
+                  <button
+                    onClick={optimizeProjectDescription}
+                    disabled={!currentProject.description.trim() || isOptimizingProjectDescription}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      currentProject.description.trim() && !isOptimizingProjectDescription
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Wand2 className={`h-4 w-4 ${isOptimizingProjectDescription ? 'animate-spin' : ''}`} />
+                    <span>{isOptimizingProjectDescription ? 'AI优化中...' : 'AI优化描述'}</span>
+                  </button>
+                </div>
+                
+                <textarea
+                  value={currentProject.description}
+                  onChange={(e) => setCurrentProject(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  rows={5}
+                  placeholder="描述项目背景、目标、您的职责、使用的技术、取得的成果等。例如：
+该项目是一个基于React和Node.js的全栈应用，旨在帮助用户快速生成专业简历。
+负责前端架构设计和核心功能开发，实现了AI智能推荐、模板切换、PDF导出等功能。
+项目上线后获得1000+用户使用，好评率达95%。"
+                />
+                <p className="text-sm text-purple-700 mt-2">
+                  💡 填写后点击"AI优化描述"，让AI帮您提炼项目亮点，使描述更专业
+                </p>
+              </div>
 
-     default:
-       return null
-   }
- }
+              {/* 技术栈 - 添加AI建议功能 */}
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">技术栈</h3>
+                  <button
+                    onClick={generateTechStack}
+                    disabled={(!currentProject.name || !currentProject.description) || isGeneratingTechStack}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      currentProject.name && currentProject.description && !isGeneratingTechStack
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Target className={`h-4 w-4 ${isGeneratingTechStack ? 'animate-spin' : ''}`} />
+                    <span>{isGeneratingTechStack ? 'AI推荐中...' : 'AI推荐技术栈'}</span>
+                  </button>
+                </div>
+                
+                <input
+                  type="text"
+                  value={currentProject.technologies}
+                  onChange={(e) => setCurrentProject(prev => ({ ...prev, technologies: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="如：React, TypeScript, Node.js, MongoDB, Docker, Git"
+                />
+                <p className="text-sm text-blue-700 mt-2">
+                  🔧 列出项目中使用的主要技术、框架、工具等，用逗号分隔
+                </p>
+              </div>
 
- return (
-   <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4">
-     <div className="max-w-6xl mx-auto">
-       <div className="bg-white rounded-2xl shadow-xl">
-         {/* Tab Navigation */}
-         <div className="border-b border-gray-200">
-           <nav className="flex">
-             <button
-               onClick={() => setCurrentTab('personal')}
-               className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
-                 currentTab === 'personal'
-                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                   : 'text-gray-600 hover:text-gray-900'
-               }`}
-             >
-               <User className="inline h-5 w-5 mr-2" />
-               个人信息
-             </button>
-             <button
-               onClick={() => setCurrentTab('education')}
-               className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
-                 currentTab === 'education'
-                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                   : 'text-gray-600 hover:text-gray-900'
-               }`}
-             >
-               <GraduationCap className="inline h-5 w-5 mr-2" />
-               教育背景
-             </button>
-             <button
-               onClick={() => setCurrentTab('experience')}
-               className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
-                 currentTab === 'experience'
-                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                   : 'text-gray-600 hover:text-gray-900'
-               }`}
-             >
-               <Briefcase className="inline h-5 w-5 mr-2" />
-               工作经历
-               {experience.length > 0 && (
-                 <span className="ml-1 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                   {experience.length}
-                 </span>
-               )}
-             </button>
-             <button
-               onClick={() => setCurrentTab('projects')}
-               className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
-                 currentTab === 'projects'
-                   ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                   : 'text-gray-600 hover:text-gray-900'
-               }`}
-             >
-               <FolderOpen className="inline h-5 w-5 mr-2" />
-               项目经历
-               {projects.length > 0 && (
-                 <span className="ml-1 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                   {projects.length}
-                 </span>
-               )}
-             </button>
-           </nav>
-         </div>
+              {/* 项目成就 - 新增AI生成功能 */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <Award className="h-5 w-5 text-yellow-500 mr-2" />
+                    项目成就与亮点
+                  </h3>
+                  <button
+                    onClick={generateProjectAchievements}
+                    disabled={(!currentProject.name || !currentProject.description) || isGeneratingProjectAchievements}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                      currentProject.name && currentProject.description && !isGeneratingProjectAchievements
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Sparkles className={`h-4 w-4 ${isGeneratingProjectAchievements ? 'animate-spin' : ''}`} />
+                    <span>{isGeneratingProjectAchievements ? 'AI生成中...' : 'AI生成项目成就'}</span>
+                  </button>
+                </div>
+                
+                <div className="text-sm text-green-700 bg-green-100 p-3 rounded-lg">
+                  <p className="font-medium mb-1">✨ 项目亮点提示：</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• 技术创新：使用了什么新技术或解决方案？</li>
+                    <li>• 性能优化：提升了多少性能？节省了多少资源？</li>
+                    <li>• 用户价值：服务了多少用户？解决了什么问题？</li>
+                    <li>• 个人贡献：独立完成了什么？主导了什么？</li>
+                  </ul>
+                  <p className="mt-2 text-green-800 font-medium">
+                    点击"AI生成项目成就"自动提炼量化成就！
+                  </p>
+                </div>
+              </div>
 
-         {/* Tab Content */}
-         <div className="p-8">
-           {renderTabContent()}
-         </div>
+              <div className="flex justify-center">
+                <button
+                  onClick={handleAddProject}
+                  disabled={!currentProject.name || !currentProject.role}
+                  className={`px-8 py-3 rounded-lg font-medium transition-colors ${
+                    currentProject.name && currentProject.role
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {editingProjectId ? '更新项目' : '添加项目'}
+                </button>
+              </div>
+            </div>
 
-         {/* Navigation Buttons */}
-         <div className="flex justify-between items-center px-8 py-6 border-t border-gray-200">
-           <button
-             onClick={onBack}
-             className="flex items-center space-x-2 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-           >
-             <ArrowLeft className="h-4 w-4" />
-             <span>返回首页</span>
-           </button>
+            {/* 已添加的项目列表 - 美化展示 */}
+            {projects.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold text-gray-900">已添加的项目</h3>
+                  <div className="text-sm text-gray-500">
+                    共 {projects.length} 个项目
+                  </div>
+                </div>
+                
+                {projects.map((project) => (
+                  <div key={project.id} className="bg-white border-2 border-purple-200 rounded-xl p-6 hover:border-purple-400 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <h4 className="text-lg font-bold text-gray-900">{project.name}</h4>
+                          <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full font-medium">
+                            {project.role}
+                          </span>
+                        </div>
+                        
+                        {project.duration && (
+                          <div className="flex items-center text-sm text-gray-600 mb-3">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            <span>{project.duration}</span>
+                          </div>
+                        )}
+                        
+                        <p className="text-gray-700 mb-4 whitespace-pre-line leading-relaxed">
+                          {project.description}
+                        </p>
+                        
+                        {project.technologies && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {project.technologies.split(',').map((tech, index) => (
+                                <span 
+                                  key={index} 
+                                  className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium"
+                                >
+                                  {tech.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {project.link && (
+                          <div className="flex items-center text-sm">
+                            <Globe className="h-4 w-4 mr-1 text-gray-500" />
+                            <a 
+                              href={project.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              查看项目
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col space-y-2 ml-4">
+                        <button
+                          onClick={() => {
+                            setCurrentProject(project)
+                            setEditingProjectId(project.id)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="编辑项目"
+                        >
+                          <Edit3 className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => setProjects(prev => prev.filter(p => p.id !== project.id))}
+                          className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="删除项目"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
 
-           <div className="flex items-center space-x-4">
-             <div className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-lg">
-               完成情况：
-               个人信息 {personalInfo.name ? '✅' : '⏳'} | 
-               教育 {education.length > 0 ? `✅(${education.length})` : '⏳'} | 
-               工作 {experience.length > 0 ? `✅(${experience.length})` : '⏳'} | 
-               项目 {projects.length > 0 ? `✅(${projects.length})` : '⏳'} |
-               语言 {languages.length > 0 ? `✅(${languages.length})` : '⏳'}
-             </div>
-             
-             <button
-               onClick={handleSubmit}
-               className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-105 font-medium shadow-lg"
-             >
-               <span>下一步：AI技能推荐</span>
-               <ArrowRight className="h-5 w-5" />
-             </button>
-           </div>
-         </div>
-       </div>
-     </div>
-   </div>
- )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl">
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200">
+            <nav className="flex">
+              <button
+                onClick={() => setCurrentTab('personal')}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  currentTab === 'personal'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <User className="inline h-5 w-5 mr-2" />
+                个人信息
+              </button>
+              <button
+                onClick={() => setCurrentTab('education')}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  currentTab === 'education'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <GraduationCap className="inline h-5 w-5 mr-2" />
+                教育背景
+              </button>
+              <button
+                onClick={() => setCurrentTab('experience')}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  currentTab === 'experience'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Briefcase className="inline h-5 w-5 mr-2" />
+                工作经历
+                {experience.length > 0 && (
+                  <span className="ml-1 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                    {experience.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setCurrentTab('projects')}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  currentTab === 'projects'
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <FolderOpen className="inline h-5 w-5 mr-2" />
+                项目经历
+                {projects.length > 0 && (
+                  <span className="ml-1 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                    {projects.length}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-8">
+            {renderTabContent()}
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between items-center px-8 py-6 border-t border-gray-200">
+            <button
+              onClick={onBack}
+              className="flex items-center space-x-2 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>返回首页</span>
+            </button>
+
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-lg">
+                完成情况：
+                个人信息 {personalInfo.name ? '✅' : '⏳'} | 
+                教育 {education.length > 0 ? `✅(${education.length})` : '⏳'} | 
+                工作 {experience.length > 0 ? `✅(${experience.length})` : '⏳'} | 
+                项目 {projects.length > 0 ? `✅(${projects.length})` : '⏳'} |
+                语言 {languages.length > 0 ? `✅(${languages.length})` : '⏳'}
+              </div>
+              
+              <button
+                onClick={handleSubmit}
+                className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-105 font-medium shadow-lg"
+              >
+                <span>下一步：AI技能推荐</span>
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default InformationCollection

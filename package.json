@@ -1,13 +1,17 @@
 {
   "name": "chinese-resume-builder",
-  "version": "1.0.0",
-  "description": "一个基于React的中文简历制作工具",
+  "version": "1.1.0",
+  "description": "基于动态拓扑AI架构的中文简历制作工具",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "netlify": "netlify dev"
+    "netlify": "netlify dev",
+    "test": "vitest",
+    "test:ai": "node scripts/test-ai-service.js",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
@@ -22,12 +26,38 @@
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.21",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
     "netlify-cli": "^17.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.3.0",
     "typescript": "^5.0.2",
-    "vite": "^4.4.5"
-  }
+    "vite": "^4.4.5",
+    "vitest": "^0.34.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "resume",
+    "cv", 
+    "chinese",
+    "ai",
+    "react",
+    "typescript",
+    "netlify"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/chinese-resume-builder.git"
+  },
+  "homepage": "https://your-app-name.netlify.app"
 }

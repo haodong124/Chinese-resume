@@ -131,6 +131,32 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
   const leftColumnSkills = skillCategories.slice(0, Math.ceil(skillCategories.length / 2))
   const rightColumnSkills = skillCategories.slice(Math.ceil(skillCategories.length / 2))
 
+  // 解析项目描述中的成就
+  const parseProjectDescription = (description: string) => {
+    // 检查是否包含"项目成就："部分
+    if (description.includes('项目成就：')) {
+      const parts = description.split('项目成就：')
+      const mainDescription = parts[0].trim()
+      const achievementsText = parts[1]
+      
+      // 解析成就列表
+      const achievementsList = achievementsText
+        .split(/\d+\./)
+        .filter(item => item.trim())
+        .map(item => item.trim())
+      
+      return {
+        mainDescription,
+        achievements: achievementsList
+      }
+    }
+    
+    return {
+      mainDescription: description,
+      achievements: []
+    }
+  }
+
   return (
     <div className="bg-white text-black max-w-[210mm] mx-auto" 
          style={{ 
@@ -163,6 +189,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
           <span>{personalInfo.location}</span>
           <span>{personalInfo.phone}</span>
           <span>{personalInfo.email}</span>
+          {personalInfo.website && <span>{personalInfo.website}</span>}
         </div>
       </div>
 
@@ -403,7 +430,7 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
         </section>
       )}
 
-      {/* 项目经历 */}
+      {/* 项目经历 - 改进版，支持成就展示 */}
       {projects && projects.length > 0 && (
         <section style={{ marginBottom: '16px' }}>
           <h2 style={{ 
@@ -419,33 +446,98 @@ const StandardTemplate: React.FC<TemplateProps> = ({ resumeData, isPreview = fal
             项目经历
           </h2>
           <div>
-            {projects.map((project, index) => (
-              <div key={project.id} style={{ marginBottom: index < projects.length - 1 ? '12px' : '0' }}>
-                <div style={{ 
-                  fontWeight: '600', 
-                  fontSize: '11px',
-                  color: '#111827'
-                }}>
-                  {project.name} - {project.role}
-                </div>
-                <div style={{ 
-                  fontSize: '11px',
-                  color: '#1f2937',
-                  marginTop: '2px'
-                }}>
-                  {project.description}
-                </div>
-                {project.technologies && (
-                  <div style={{ 
-                    fontSize: '10px',
-                    color: '#374151',
-                    marginTop: '2px'
-                  }}>
-                    技术栈：{project.technologies}
+            {projects.map((project, index) => {
+              const { mainDescription, achievements } = parseProjectDescription(project.description)
+              
+              return (
+                <div key={project.id} style={{ marginBottom: index < projects.length - 1 ? '16px' : '0' }}>
+                  <div style={{ marginBottom: '4px' }}>
+                    <div style={{ 
+                      fontWeight: '600', 
+                      fontSize: '11px',
+                      color: '#111827'
+                    }}>
+                      {project.name} | {project.duration || '项目时间'}
+                    </div>
+                    <div style={{ 
+                      fontSize: '11px',
+                      color: '#4b5563',
+                      marginBottom: '2px'
+                    }}>
+                      {project.role}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  <ul style={{ 
+                    margin: 0, 
+                    paddingLeft: '0',
+                    listStyle: 'none'
+                  }}>
+                    {/* 主要描述 */}
+                    <li style={{ 
+                      fontSize: '11px',
+                      marginBottom: '4px',
+                      position: 'relative',
+                      paddingLeft: '8px',
+                      lineHeight: '1.4',
+                      color: '#1f2937'
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        left: '0',
+                        fontWeight: 'bold',
+                        color: '#000000'
+                      }}>•</span>
+                      {mainDescription}
+                    </li>
+                    
+                    {/* 项目成就（如果有） */}
+                    {achievements.map((achievement, achIndex) => (
+                      <li key={achIndex} style={{ 
+                        fontSize: '11px',
+                        marginBottom: '4px',
+                        position: 'relative',
+                        paddingLeft: '8px',
+                        lineHeight: '1.4',
+                        color: '#1f2937'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          left: '0',
+                          fontWeight: 'bold',
+                          color: '#000000'
+                        }}>•</span>
+                        {achievement}
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  {/* 技术栈 */}
+                  {project.technologies && (
+                    <div style={{ 
+                      fontSize: '10px',
+                      color: '#6b7280',
+                      marginTop: '4px',
+                      paddingLeft: '8px'
+                    }}>
+                      <strong>技术栈：</strong> {project.technologies}
+                    </div>
+                  )}
+                  
+                  {/* 项目链接 */}
+                  {project.link && (
+                    <div style={{ 
+                      fontSize: '10px',
+                      color: '#3b82f6',
+                      marginTop: '2px',
+                      paddingLeft: '8px'
+                    }}>
+                      <strong>链接：</strong> {project.link}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </section>
       )}

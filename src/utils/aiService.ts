@@ -1,60 +1,192 @@
 // ============================================
-// 2. 更新 src/utils/aiService.ts (完整重写)
+// src/utils/aiService.ts - 完整重写版本
 // ============================================
 
-interface PersonalInfo {
-  name: string
-  email: string
-  phone: string
-  location: string
-  title?: string
-  summary?: string
+// 导入现有接口
+import type { PersonalInfo, Education, Experience, Project, Language, Achievement, IndustryAnalysis } from '../App'
+
+// 统一数据契约接口
+interface UnifiedDataContract {
+  id?: string
+  source: 'skills' | 'work_achievements' | 'project_achievements'
+  timestamp: string
+  confidence: number
 }
 
-interface Education {
-  id: string
-  school: string
-  degree: string
-  major: string
-  duration: string
+interface SkillRecommendation extends UnifiedDataContract {
+  skill: string
+  category: 'software' | 'hardware' | 'soft_skill' | 'technical' | 'management'
+  level: 'understand' | 'proficient' | 'expert'
   description: string
-  gpa?: string
-}
-
-interface RecommendedSkill {
-  name: string
-  level: 'beginner' | 'intermediate' | 'advanced' | 'expert'
-  category: string
-  description: string
-  reason: string
+  value_proposition: string
+  evidence?: Array<{ source: string; note?: string }>
+  priority: 'high' | 'medium' | 'low'
   selected: boolean
+  salaryImpact?: string
+  learningTime?: string
+  trend?: 'rising' | 'stable' | 'declining'
 }
 
+interface AchievementItem extends UnifiedDataContract {
+  title?: string
+  content: string
+  metrics: {
+    type: 'absolute' | 'percentage' | 'range' | 'qualitative'
+    value: string
+    baseline?: string
+    period?: string
+    confidence: number
+  }
+  relevance: {
+    target_job_title: string
+    score: number
+  }
+  freshness: string
+  tags: string[]
+}
+
+interface ISVValidationResult {
+  isValid: boolean
+  confidence: number
+  suggestedValue?: string
+  reason?: string
+}
+
+// 行业标准校验器
+class IndustryStandardValidator {
+  static validateMetrics(achievement: AchievementItem): ISVValidationResult {
+    const { metrics } = achievement
+    
+    if (metrics.type === 'percentage') {
+      const value = parseFloat(metrics.value)
+      if (value > 100) {
+        return {
+          isValid: false,
+          confidence: 0.1,
+          suggestedValue: '显著提升',
+          reason: '百分比超过100%不现实'
+        }
+      }
+      if (value > 50 && metrics.confidence < 0.7) {
+        return {
+          isValid: false,
+          confidence: 0.3,
+          suggestedValue: `约${Math.round(value/2)}%-${value}%`,
+          reason: '高百分比需要更强证据支撑'
+        }
+      }
+    }
+    
+    if (metrics.type === 'absolute') {
+      const timeMatch = metrics.value.match(/(\d+)(小时|天|周|月)/);
+      if (timeMatch) {
+        const amount = parseInt(timeMatch[1])
+        const unit = timeMatch[2]
+        
+        if (unit === '小时' && amount > 40) {
+          return {
+            isValid: false,
+            confidence: 0.2,
+            suggestedValue: '大幅节省时间',
+            reason: '时间节省量可能过高'
+          }
+        }
+      }
+    }
+    
+    return {
+      isValid: true,
+      confidence: metrics.confidence
+    }
+  }
+  
+  static enhanceDescription(content: string, metrics: AchievementItem['metrics']): string {
+    if (metrics.type === 'percentage') {
+      return content.replace(/提升(\d+)%/, '提升约$1%')
+    }
+    
+    if (metrics.type === 'absolute') {
+      return content.replace(/节省(\d+)(小时|天)/, '节省近$1$2')
+    }
+    
+    return content
+  }
+}
+
+// 事件总线
+class EventBus {
+  private events: Map<string, Function[]> = new Map()
+
+  emit(eventType: string, data: any) {
+    const handlers = this.events.get(eventType) || []
+    handlers.forEach(handler => handler(data))
+    console.log(`[事件] ${eventType}:`, data.length || 0, '项数据')
+  }
+
+  on(eventType: string, handler: Function) {
+    if (!this.events.has(eventType)) {
+      this.events.set(eventType, [])
+    }
+    this.events.get(eventType)!.push(handler)
+  }
+
+  off(eventType: string, handler: Function) {
+    const handlers = this.events.get(eventType) || []
+    const index = handlers.indexOf(handler)
+    if (index > -1) {
+      handlers.splice(index, 1)
+    }
+  }
+
+  clear() {
+    this.events.clear()
+  }
+}
+
+// 性能监控
+class PerformanceMonitor {
+  private metrics: Map<string, number> = new Map()
+
+  start(label: string) {
+    this.metrics.set(label, Date.now())
+  }
+
+  end(label: string): number {
+    const startTime = this.metrics.get(label)
+    if (!startTime) return 0
+    
+    const duration = Date.now() - startTime
+    console.log(`[性能] ${label}: ${duration}ms`)
+    this.metrics.delete(label)
+    return duration
+  }
+}
+
+// 主要AI服务类
 class AIService {
   private baseURL: string
+  private eventBus: EventBus
+  private monitor: PerformanceMonitor
 
-  constructor() {
-    // 自动检测环境
+  constructor(eventBus?: EventBus) {
     this.baseURL = window.location.hostname === 'localhost' 
       ? 'http://localhost:8888/.netlify/functions/ai-service'
       : '/.netlify/functions/ai-service'
+    this.eventBus = eventBus || new EventBus()
+    this.monitor = new PerformanceMonitor()
   }
 
-  private async callAIFunction(prompt: string, systemMessage: string, action: string = 'default', maxTokens: number = 2000): Promise<string> {
+  private async callAI(prompt: string, systemMessage: string, action: string = 'general'): Promise<string> {
     try {
-      console.log('Calling AI function at:', this.baseURL)
-      
       const response = await fetch(this.baseURL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt,
           systemMessage,
           action,
           temperature: 0.7,
-          maxTokens
+          maxTokens: 3000
         })
       })
 
@@ -64,359 +196,470 @@ class AIService {
       }
 
       const data = await response.json()
-      
-      if (!data.content) {
-        throw new Error('AI返回内容为空')
-      }
-
-      return data.content
+      return data.content || ''
     } catch (error) {
       console.error('AI Service Error:', error)
       throw error
     }
   }
 
+  // AI服务1：深度技能推荐
   async generateSkillRecommendations(
     personalInfo: PersonalInfo, 
-    education: Education[]
-  ): Promise<RecommendedSkill[]> {
-    const prompt = this.buildSkillRecommendationPrompt(personalInfo, education)
+    education: Education[],
+    targetJobTitle: string
+  ): Promise<SkillRecommendation[]> {
+    this.monitor.start('skill-recommendations')
     
     try {
-      const content = await this.callAIFunction(
-        prompt,
-        '你是一个专业的HR和职业规划师，专门帮助求职者分析他们的背景并推荐合适的技能。请根据用户的教育背景和个人信息，推荐8-10个最相关的技能。',
-        'skills',
-        2000
+      // Task 1: 岗位深度解构
+      const jobAnalysisPrompt = `
+分析职位"${targetJobTitle}"的核心职责与技能需求：
+
+用户背景：
+- 教育：${education.map(e => `${e.degree} ${e.major}`).join('、')}
+- 目标职位：${targetJobTitle}
+
+请按以下格式返回分析结果：
+{
+  "core_responsibilities": ["职责1", "职责2", ...],
+  "required_tools": ["工具1", "工具2", ...],
+  "skill_categories": {
+    "software": ["软件1", "软件2", ...],
+    "hardware": ["硬件1", "硬件2", ...],
+    "soft_skills": ["软技能1", "软技能2", ...]
+  }
+}`
+
+      const analysisResult = await this.callAI(
+        jobAnalysisPrompt,
+        '你是资深行业分析师，精通各职位的技术栈和技能要求分工。',
+        'job_analysis'
       )
 
-      return this.parseSkillRecommendations(content)
-    } catch (error) {
-      console.error('AI技能推荐失败，使用备选方案:', error)
-      return this.getFallbackRecommendations(education)
-    }
-  }
+      const analysis = JSON.parse(this.extractJSON(analysisResult))
+      
+      // Task 2A/2B: 基于分析结果推荐技能
+      const recommendationPrompt = `
+基于职位分析结果，为"${targetJobTitle}"推荐10-12个具体技能：
 
-  // 新增：通用AI调用方法（供其他组件使用）
-  async callAI(prompt: string, systemMessage: string, maxTokens: number = 3000): Promise<string> {
-    return this.callAIFunction(prompt, systemMessage, 'general', maxTokens)
-  }
+分析结果：${JSON.stringify(analysis)}
 
-  private buildSkillRecommendationPrompt(personalInfo: PersonalInfo, education: Education[]): string {
-    const educationText = education.map(edu => 
-      `${edu.degree} - ${edu.major} (${edu.school})`
-    ).join(', ')
-
-    return `请为以下求职者推荐技能：
-
-个人信息：
-- 姓名：${personalInfo.name}
-- 职位目标：${personalInfo.title || '未指定'}
-- 教育背景：${educationText}
-- 个人简介：${personalInfo.summary || '无'}
-
-请按照以下JSON格式返回8-10个技能推荐：
-
+要求严格按照以下JSON Schema格式返回：
 [
   {
-    "name": "Java",
-    "level": "advanced",
-    "category": "编程语言",
-    "description": "企业级应用开发",
-    "reason": "计算机专业核心技能",
-    "selected": true
+    "skill": "具体技能名称",
+    "category": "software|hardware|soft_skill|technical|management",
+    "level": "understand|proficient|expert", 
+    "description": "用于完成…[具体应用]，能够…[达成效果]",
+    "value_proposition": "从而帮助…[团队/公司]实现…[可量化价值]",
+    "evidence": [{"source": "建议学习资源", "note": "说明"}],
+    "priority": "high|medium|low",
+    "selected": true,
+    "salaryImpact": "提升15-30%",
+    "learningTime": "1-3个月",
+    "trend": "rising|stable|declining"
   }
 ]
 
-要求：
-1. level只能是: beginner, intermediate, advanced, expert
-2. 前5个技能设置selected为true，其余为false
-3. 必须返回有效的JSON数组格式
+注意：
+- 前8个技能设置selected为true
+- 根据2024-2025年市场趋势调整
+- 包含具体软件名称，避免泛泛而谈`
 
-JSON:`
-  }
+      const recommendationsResult = await this.callAI(
+        recommendationPrompt,
+        '你是世界顶级的HR专家和职业规划师，拥有20年行业经验，深度了解AI和数字化转型对技能要求的影响。',
+        'skill_recommendation'
+      )
 
-  private parseSkillRecommendations(content: string): RecommendedSkill[] {
-    try {
-      let jsonString = content.trim()
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        jsonString = jsonMatch[0]
-      }
-      jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+      const rawRecommendations = JSON.parse(this.extractJSON(recommendationsResult))
       
-      const skills = JSON.parse(jsonString)
-      
-      if (!Array.isArray(skills)) {
-        throw new Error('返回的不是数组格式')
-      }
+      // 转换为统一数据契约格式
+      const recommendations: SkillRecommendation[] = rawRecommendations.map((skill: any, index: number) => ({
+        id: `skill-${Date.now()}-${index}`,
+        source: 'skills' as const,
+        timestamp: new Date().toISOString(),
+        confidence: 0.85,
+        skill: skill.skill,
+        category: skill.category,
+        level: skill.level,
+        description: skill.description,
+        value_proposition: skill.value_proposition,
+        evidence: skill.evidence || [],
+        priority: skill.priority,
+        selected: skill.selected,
+        salaryImpact: skill.salaryImpact,
+        learningTime: skill.learningTime,
+        trend: skill.trend
+      }))
 
-      return skills.map((skill: any, index: number) => ({
-        name: skill.name || `技能${index + 1}`,
-        level: ['beginner', 'intermediate', 'advanced', 'expert'].includes(skill.level) 
-          ? skill.level 
-          : 'intermediate',
-        category: skill.category || '通用技能',
-        description: skill.description || '',
-        reason: skill.reason || '',
-        selected: skill.selected === true || index < 5
-      })).slice(0, 10)
+      // 发送事件
+      this.eventBus.emit('skills.updated', recommendations)
+      this.monitor.end('skill-recommendations')
       
+      return recommendations
     } catch (error) {
-      console.error('解析AI返回内容失败:', error)
+      this.monitor.end('skill-recommendations')
+      console.error('技能推荐失败:', error)
       throw error
     }
   }
 
-  private getFallbackRecommendations(education: Education[]): RecommendedSkill[] {
-    const major = education[0]?.major || ''
+  // AI服务2：工作经历优化
+  async optimizeWorkExperience(
+    workExperience: Experience[],
+    targetJobTitle: string,
+    personalInfo: PersonalInfo
+  ): Promise<AchievementItem[]> {
+    this.monitor.start('work-optimization')
     
-    const fallbackSkills: Record<string, RecommendedSkill[]> = {
-      '计算机科学与技术': [
-        {
-          name: 'Java',
-          level: 'advanced',
-          category: '编程语言',
-          description: '企业级应用开发的主流语言',
-          reason: '计算机专业核心技能，市场需求量大',
-          selected: true
-        },
-        {
-          name: 'Python',
-          level: 'intermediate',
-          category: '编程语言',
-          description: '数据处理和Web开发',
-          reason: '应用范围广泛，容易上手',
-          selected: true
-        },
-        {
-          name: 'React',
-          level: 'intermediate',
-          category: '前端框架',
-          description: '现代前端界面开发',
-          reason: '前端开发主流框架',
-          selected: true
-        },
-        {
-          name: 'MySQL',
-          level: 'intermediate',
-          category: '数据库',
-          description: '关系型数据库设计',
-          reason: '后端开发必备技能',
-          selected: true
-        },
-        {
-          name: 'Git',
-          level: 'intermediate',
-          category: '版本控制',
-          description: '代码版本管理',
-          reason: '团队开发必备',
-          selected: true
-        }
-      ],
-      '默认': [
-        {
-          name: 'Microsoft Office',
-          level: 'intermediate',
-          category: '办公软件',
-          description: 'Office办公套件',
-          reason: '职场基础技能',
-          selected: true
-        },
-        {
-          name: '沟通协调',
-          level: 'intermediate',
-          category: '软技能',
-          description: '团队协作能力',
-          reason: '职场必备能力',
-          selected: true
-        },
-        {
-          name: '项目管理',
-          level: 'beginner',
-          category: '管理技能',
-          description: '项目计划执行',
-          reason: '职业发展技能',
-          selected: true
-        },
-        {
-          name: '数据分析',
-          level: 'beginner',
-          category: '分析技能',
-          description: '数据处理分析',
-          reason: '现代工作技能',
-          selected: true
-        },
-        {
-          name: '英语',
-          level: 'intermediate',
-          category: '语言技能',
-          description: '商务英语能力',
-          reason: '国际化需求',
-          selected: true
-        }
-      ]
-    }
-
-    return fallbackSkills[major] || fallbackSkills['默认']
-  }
-}
-
-// 创建单例实例
-const createAIService = (): AIService => {
-  return new AIService()
-}
-
-export { AIService, createAIService }
-export type { RecommendedSkill }
-
-// ============================================
-// 3. 更新 EnhancedAISkillRecommendation.tsx 中的 callAIService
-// ============================================
-
-// 在 EnhancedAISkillRecommendation.tsx 文件中，替换 callAIService 函数：
-
-import { createAIService } from '../utils/aiService'
-
-// 在组件内部：
-const aiService = createAIService()
-
-// 替换原来的 callAIService 函数调用为：
-const callAIService = async (prompt: string, systemMessage: string) => {
-  return await aiService.callAI(prompt, systemMessage)
-}
-
-// 生成AI技能推荐 - 使用新的服务
-const generateAISkillRecommendations = async () => {
-  try {
-    setAiError(null)
-    const skills = await aiService.generateSkillRecommendations(personalInfo, education)
-    setRecommendedSkills(skills.map(skill => ({
-      ...skill,
-      priority: 'high' as const,
-      salaryImpact: '提升15-30%',
-      learningTime: '1-3个月',
-      trend: 'rising' as const
-    })))
-  } catch (error) {
-    console.error('AI技能推荐失败:', error)
-    setAiError('AI推荐服务暂时不可用，使用智能备选推荐')
-    const fallbackSkills = getIntelligentFallbackSkills()
-    setRecommendedSkills(fallbackSkills)
-  }
-}
-
-// ============================================
-// 4. 更新 EnhancedSkillSuggestions.tsx
-// ============================================
-
-import React, { useState } from 'react'
-import { Lightbulb, Loader2, Plus, Sparkles } from 'lucide-react'
-import { ResumeData } from '../App'
-import { createAIService } from '../utils/aiService'
-
-interface SkillSuggestion {
-  skill: string
-  reason: string
-  category: string
-}
-
-interface EnhancedSkillSuggestionsProps {
-  resumeData: ResumeData
-  onAddSkill: (skill: string) => void
-}
-
-const EnhancedSkillSuggestions: React.FC<EnhancedSkillSuggestionsProps> = ({ 
-  resumeData, 
-  onAddSkill 
-}) => {
-  const [suggestions, setSuggestions] = useState<SkillSuggestion[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  const aiService = createAIService()
-
-  const generateSkillSuggestions = async () => {
-    setLoading(true)
-    setError(null)
-
     try {
-      const resumeSummary = {
-        experience: resumeData.experience.map(exp => 
-          `${exp.position}在${exp.company}: ${exp.description}`
-        ).join('\n'),
-        projects: resumeData.projects.map(proj => 
-          `${proj.name}: ${proj.description} 技术栈: ${proj.technologies}`
-        ).join('\n'),
-        currentSkills: resumeData.skills || ''
-      }
+      const prompt = `
+优化以下工作经历，生成量化成就：
 
-      const prompt = `工作经历：${resumeSummary.experience}\n\n项目经验：${resumeSummary.projects}\n\n现有技能：${resumeSummary.currentSkills}\n\n请推荐相关技能。`
-      
-      const systemMessage = '你是一个专业的职业规划师。基于用户的工作经历和项目经验，推荐5-6个最有价值的技能。请以JSON数组格式返回，每个技能包含skill(技能名称)、reason(推荐理由)、category(技能分类)三个字段。'
+目标职位：${targetJobTitle}
+个人背景：${personalInfo.name}
 
-      const content = await aiService.callAI(prompt, systemMessage, 1000)
+工作经历：
+${workExperience.map(exp => `
+${exp.position} @ ${exp.company} (${exp.duration})
+${exp.isInternship ? '[实习]' : '[正式工作]'}
+描述：${exp.description}
+已有成就：${exp.achievements?.join('；') || '无'}
+`).join('\n\n')}
+
+要求按以下JSON Schema格式返回优化后的成就：
+[
+  {
+    "content": "动词+动作+结果的成就描述",
+    "metrics": {
+      "type": "absolute|percentage|range|qualitative",
+      "value": "具体数值或描述", 
+      "baseline": "对比基准（可选）",
+      "period": "时间范围（可选）",
+      "confidence": 0.8
+    },
+    "relevance": {
+      "target_job_title": "${targetJobTitle}",
+      "score": 0.9
+    },
+    "freshness": "2024-08",
+    "tags": ["相关技能", "业务域", "工具"]
+  }
+]
+
+ISV校验要求：
+1. 避免>30%的夸张数字，优先使用5-15%或绝对值
+2. 支持"约/近/超过"等修饰词
+3. 突出过程和职责，而非仅结果
+4. 确保量化指标的合理性和可信度`
+
+      const result = await this.callAI(
+        prompt,
+        '你是资深简历写作专家，擅长将工作经历转化为量化成就，严格遵守行业标准校验规则，确保真实性和可信度。',
+        'work_optimization'
+      )
+
+      const rawAchievements = JSON.parse(this.extractJSON(result))
       
-      // 解析返回的JSON
-      try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/)
-        const jsonContent = jsonMatch ? jsonMatch[0] : content
-        const parsedSuggestions = JSON.parse(jsonContent)
-        setSuggestions(parsedSuggestions.slice(0, 6))
-      } catch (parseError) {
-        throw new Error('解析AI响应失败')
-      }
+      // ISV校验和增强
+      const achievements: AchievementItem[] = rawAchievements.map((ach: any, index: number) => {
+        const achievement: AchievementItem = {
+          id: `work-${Date.now()}-${index}`,
+          source: 'work_achievements',
+          timestamp: new Date().toISOString(),
+          confidence: ach.metrics.confidence,
+          content: ach.content,
+          metrics: ach.metrics,
+          relevance: ach.relevance,
+          freshness: ach.freshness,
+          tags: ach.tags
+        }
+
+        // ISV校验
+        const validation = IndustryStandardValidator.validateMetrics(achievement)
+        if (!validation.isValid) {
+          achievement.content = IndustryStandardValidator.enhanceDescription(
+            achievement.content, 
+            achievement.metrics
+          )
+          achievement.confidence = validation.confidence
+          if (validation.suggestedValue) {
+            achievement.metrics.value = validation.suggestedValue
+          }
+        }
+
+        return achievement
+      })
+
+      // 发送事件
+      this.eventBus.emit('work_achievements.updated', achievements)
+      this.monitor.end('work-optimization')
       
+      return achievements
     } catch (error) {
-      console.error('生成技能建议失败:', error)
-      setError(error instanceof Error ? error.message : '生成失败')
-      
-      // 提供默认建议
-      const fallbackSuggestions = [
-        { skill: 'React', reason: '流行的前端框架，市场需求大', category: '前端框架' },
-        { skill: 'Node.js', reason: '服务端JavaScript运行环境', category: '后端技术' },
-        { skill: 'Python', reason: '多用途编程语言，AI/数据分析热门', category: '编程语言' },
-        { skill: 'SQL', reason: '数据库查询语言，数据处理必备', category: '数据库' },
-        { skill: 'Git', reason: '版本控制工具，开发必备技能', category: '开发工具' }
-      ]
-      setSuggestions(fallbackSuggestions)
-    } finally {
-      setLoading(false)
+      this.monitor.end('work-optimization')
+      console.error('工作经历优化失败:', error)
+      throw error
     }
   }
 
-  const handleAddSkill = (skill: string) => {
-    onAddSkill(skill)
-    setSuggestions(prev => prev.filter(s => s.skill !== skill))
+  // AI服务3：项目经历美化  
+  async beautifyProjectExperience(
+    projects: Project[],
+    targetJobTitle: string,
+    personalInfo: PersonalInfo
+  ): Promise<AchievementItem[]> {
+    this.monitor.start('project-beautification')
+    
+    try {
+      const prompt = `
+美化以下项目经历，生成量化成就：
+
+目标职位：${targetJobTitle}
+个人背景：${personalInfo.name}
+
+项目经历：
+${projects.map(proj => `
+项目：${proj.name}
+角色：${proj.role}
+时间：${proj.duration}
+描述：${proj.description}
+技术栈：${proj.technologies}
+链接：${proj.link || '无'}
+`).join('\n\n')}
+
+按照统一数据契约返回JSON格式的成就列表。
+重点突出：
+1. 技术创新和解决方案
+2. 性能优化和量化指标  
+3. 用户价值和业务影响
+4. 个人技术贡献
+
+ISV规则：避免夸张，使用可信的量化表述。`
+
+      const result = await this.callAI(
+        prompt,
+        '你是项目成就提炼专家，擅长将项目经历量化，突出技术价值和业务影响，严格遵循ISV校验标准。',
+        'project_beautification'
+      )
+
+      const rawAchievements = JSON.parse(this.extractJSON(result))
+      
+      const achievements: AchievementItem[] = rawAchievements.map((ach: any, index: number) => {
+        const achievement: AchievementItem = {
+          id: `project-${Date.now()}-${index}`,
+          source: 'project_achievements',
+          timestamp: new Date().toISOString(),
+          confidence: ach.metrics?.confidence || 0.75,
+          content: ach.content,
+          metrics: ach.metrics || {
+            type: 'qualitative',
+            value: '显著改进',
+            confidence: 0.75
+          },
+          relevance: ach.relevance || {
+            target_job_title: targetJobTitle,
+            score: 0.8
+          },
+          freshness: ach.freshness || new Date().toISOString().slice(0, 7),
+          tags: ach.tags || ['项目开发']
+        }
+
+        // ISV校验
+        const validation = IndustryStandardValidator.validateMetrics(achievement)
+        if (!validation.isValid && validation.suggestedValue) {
+          achievement.metrics.value = validation.suggestedValue
+          achievement.confidence = validation.confidence
+        }
+
+        return achievement
+      })
+
+      // 发送事件
+      this.eventBus.emit('project_achievements.updated', achievements)
+      this.monitor.end('project-beautification')
+      
+      return achievements
+    } catch (error) {
+      this.monitor.end('project-beautification')
+      console.error('项目经历美化失败:', error)
+      throw error
+    }
   }
 
-  // ... 组件的其余部分保持不变
-}
+  // 通用AI调用方法（供其他组件使用）
+  async callAI(prompt: string, systemMessage: string, maxTokens: number = 3000): Promise<string> {
+    return this.callAI(prompt, systemMessage, 'general')
+  }
 
-// ============================================
-// 5. package.json 添加 Netlify CLI（用于本地测试）
-// ============================================
-{
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "netlify": "netlify dev"  // 新增：本地测试Netlify Functions
-  },
-  "devDependencies": {
-    // ... 其他依赖
-    "netlify-cli": "^17.0.0"  // 新增
+  private extractJSON(content: string): string {
+    const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      return jsonMatch[0]
+    }
+    return content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
   }
 }
 
-// ============================================
-// 6. 本地测试命令
-// ============================================
-// 安装 Netlify CLI
-npm install -D netlify-cli
+// 成就融合引擎
+class AchievementFusionEngine {
+  private isv: typeof IndustryStandardValidator = IndustryStandardValidator
 
-// 本地运行（会同时启动Vite和Functions）
-npm run netlify
+  async fuseAchievements(
+    skills: SkillRecommendation[],
+    workAchievements: AchievementItem[],
+    projectAchievements: AchievementItem[],
+    targetJobTitle: string
+  ): Promise<AchievementItem[]> {
+    console.log('[融合引擎] 开始处理...')
+    
+    // 1. 标准化输入
+    const allAchievements = [...workAchievements, ...projectAchievements]
+    
+    // 2. 去重/合并（语义相似度检测）
+    const deduplicatedAchievements = this.semanticDeduplication(allAchievements)
+    
+    // 3. 打分排序
+    const scoredAchievements = this.scoreAndRank(deduplicatedAchievements, targetJobTitle, skills)
+    
+    // 4. ISV校验
+    const validatedAchievements = scoredAchievements.map(achievement => {
+      const validation = this.isv.validateMetrics(achievement)
+      if (!validation.isValid) {
+        return {
+          ...achievement,
+          content: this.isv.enhanceDescription(achievement.content, achievement.metrics),
+          confidence: validation.confidence
+        }
+      }
+      return achievement
+    })
+    
+    // 5. 裁剪到Top-K（保证多样性）
+    const finalAchievements = this.selectTopKWithDiversity(validatedAchievements, 8)
+    
+    console.log('[融合引擎] 完成，输出', finalAchievements.length, '项成就')
+    return finalAchievements
+  }
 
-// 或者直接运行
-netlify dev
+  private semanticDeduplication(achievements: AchievementItem[]): AchievementItem[] {
+    const deduped: AchievementItem[] = []
+    
+    for (const achievement of achievements) {
+      const isDuplicate = deduped.some(existing => {
+        const similarity = this.calculateSimilarity(achievement.content, existing.content)
+        return similarity > 0.85
+      })
+      
+      if (!isDuplicate) {
+        deduped.push(achievement)
+      }
+    }
+    
+    return deduped
+  }
+
+  private calculateSimilarity(text1: string, text2: string): number {
+    const words1 = text1.toLowerCase().split(/\W+/)
+    const words2 = text2.toLowerCase().split(/\W+/)
+    
+    const intersection = words1.filter(word => words2.includes(word))
+    const union = [...new Set([...words1, ...words2])]
+    
+    return intersection.length / union.length
+  }
+
+  private scoreAndRank(
+    achievements: AchievementItem[], 
+    targetJobTitle: string,
+    skills: SkillRecommendation[]
+  ): AchievementItem[] {
+    const α = 0.4, β = 0.3, γ = 0.2, δ = 0.1
+
+    return achievements.map(achievement => {
+      const relevanceScore = achievement.relevance.score
+      const impactScore = this.calculateImpactScore(achievement.metrics)
+      const freshnessScore = this.calculateFreshnessScore(achievement.freshness)
+      const diversityScore = this.calculateDiversityScore(achievement.tags, skills)
+      
+      const totalScore = α * relevanceScore + β * impactScore + γ * freshnessScore + δ * diversityScore
+      
+      return {
+        ...achievement,
+        rankScore: totalScore
+      }
+    }).sort((a, b) => (b as any).rankScore - (a as any).rankScore)
+  }
+
+  private calculateImpactScore(metrics: AchievementItem['metrics']): number {
+    if (metrics.type === 'percentage') {
+      const value = parseFloat(metrics.value)
+      return Math.min(value / 100, 1.0) * metrics.confidence
+    }
+    
+    if (metrics.type === 'absolute') {
+      const numbers = metrics.value.match(/\d+/g)
+      if (numbers) {
+        const maxNumber = Math.max(...numbers.map(n => parseInt(n)))
+        return Math.min(maxNumber / 100, 1.0) * metrics.confidence
+      }
+    }
+    
+    return 0.5 * metrics.confidence
+  }
+
+  private calculateFreshnessScore(freshness: string): number {
+    const achievementDate = new Date(freshness + '-01')
+    const now = new Date()
+    const monthsAgo = (now.getTime() - achievementDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+    
+    if (monthsAgo <= 3) return 1.0
+    if (monthsAgo <= 12) return 0.8
+    if (monthsAgo <= 24) return 0.5
+    return 0.2
+  }
+
+  private calculateDiversityScore(tags: string[], skills: SkillRecommendation[]): number {
+    const skillNames = skills.map(s => s.skill.toLowerCase())
+    const tagMatches = tags.filter(tag => skillNames.some(skill => skill.includes(tag.toLowerCase())))
+    
+    return Math.min(tagMatches.length / tags.length, 1.0)
+  }
+
+  private selectTopKWithDiversity(achievements: AchievementItem[], k: number): AchievementItem[] {
+    const selected: AchievementItem[] = []
+    const usedTags = new Set<string>()
+    
+    for (const achievement of achievements) {
+      if (selected.length >= k) break
+      
+      const newTags = achievement.tags.filter(tag => !usedTags.has(tag))
+      if (newTags.length > 0 || selected.length < k/2) {
+        selected.push(achievement)
+        achievement.tags.forEach(tag => usedTags.add(tag))
+      }
+    }
+    
+    for (const achievement of achievements) {
+      if (selected.length >= k) break
+      if (!selected.includes(achievement)) {
+        selected.push(achievement)
+      }
+    }
+    
+    return selected.slice(0, k)
+  }
+}
+
+// 导出服务实例
+export const eventBus = new EventBus()
+export const aiService = new AIService(eventBus)
+export const achievementFusionEngine = new AchievementFusionEngine()
+
+// 向后兼容的创建函数
+export const createAIService = (): AIService => aiService
+
+export { AIService, EventBus, AchievementFusionEngine, IndustryStandardValidator }
+export type { SkillRecommendation, AchievementItem, ISVValidationResult }
